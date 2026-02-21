@@ -1,9 +1,9 @@
 /**
  * Screen 3 — Scan
- * Caregiver scans a pill bottle label. Camera with warm overlay.
- * For now uses a placeholder — camera integration comes after foundation.
+ * Caregiver scans a pill bottle label.
+ * Dark camera mode with warm amber accents — the demo's wow entry point.
  */
-import React, { useState } from "react";
+import React, { useState, useRef, useEffect } from "react";
 import {
   View,
   Text,
@@ -12,19 +12,30 @@ import {
   TextInput,
   ActivityIndicator,
   Alert,
+  Animated,
 } from "react-native";
 import { useRouter } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { theme } from "../theme";
 import { scanLabel } from "../api";
-import { useVelaStore } from "../store/useVelaStore";
 
 export default function ScanScreen() {
   const router = useRouter();
-  const store = useVelaStore();
-
   const [mode, setMode] = useState<"camera" | "manual">("camera");
   const [scanning, setScanning] = useState(false);
+
+  // Viewfinder pulse animation
+  const pulse = useRef(new Animated.Value(1)).current;
+  useEffect(() => {
+    const loop = Animated.loop(
+      Animated.sequence([
+        Animated.timing(pulse, { toValue: 1.03, duration: 1200, useNativeDriver: true }),
+        Animated.timing(pulse, { toValue: 1, duration: 1200, useNativeDriver: true }),
+      ])
+    );
+    loop.start();
+    return () => loop.stop();
+  }, []);
 
   // Manual entry fields
   const [manualName, setManualName] = useState("");
@@ -34,7 +45,6 @@ export default function ScanScreen() {
   const handleSimulateScan = async () => {
     setScanning(true);
     try {
-      // In demo mode this returns MOCK_SCAN_RESULT after 1.5s
       const result = await scanLabel("mock-image-base64");
       router.push({ pathname: "/confirm", params: { data: JSON.stringify(result) } });
     } catch {
@@ -64,157 +74,311 @@ export default function ScanScreen() {
     router.push({ pathname: "/confirm", params: { data: JSON.stringify(manualData) } });
   };
 
-  return (
-    <SafeAreaView style={styles.container}>
-      {mode === "camera" ? (
-        <View style={styles.cameraView}>
-          {/* Camera placeholder — amber overlay */}
-          <View style={styles.overlay}>
-            <View style={styles.viewfinder} />
-            <Text style={styles.overlayText}>
-              Slowly pan over the pill bottle label
-            </Text>
-          </View>
-
-          {/* Scan trigger */}
-          <View style={styles.cameraActions}>
-            <Pressable
-              style={({ pressed }) => [styles.scanButton, pressed && styles.buttonPressed]}
-              onPress={handleSimulateScan}
-              disabled={scanning}
-            >
-              {scanning ? (
-                <ActivityIndicator color={theme.colors.textOnPrimary} />
-              ) : (
-                <Text style={styles.scanButtonText}>📸  Capture label</Text>
-              )}
-            </Pressable>
-            <Pressable onPress={() => setMode("manual")} style={styles.manualLink}>
-              <Text style={styles.manualLinkText}>Type it instead →</Text>
-            </Pressable>
-          </View>
-        </View>
-      ) : (
-        /* Manual entry */
+  if (mode === "manual") {
+    return (
+      <SafeAreaView style={styles.manualContainer}>
         <View style={styles.manualForm}>
+          {/* Back to camera */}
+          <Pressable onPress={() => setMode("camera")} style={styles.backLink}>
+            <Text style={styles.backLinkText}>← Use camera</Text>
+          </Pressable>
+
           <Text style={styles.formTitle}>Enter medication details</Text>
+          <Text style={styles.formSub}>
+            Can't scan the label? No problem — type it in.
+          </Text>
 
-          <Text style={styles.label}>Medication name *</Text>
-          <TextInput
-            style={styles.input}
-            value={manualName}
-            onChangeText={setManualName}
-            placeholder="e.g. Metformin"
-            placeholderTextColor={theme.colors.textSecondary}
-            autoCapitalize="words"
-          />
-
-          <Text style={styles.label}>Dosage *</Text>
-          <TextInput
-            style={styles.input}
-            value={manualDosage}
-            onChangeText={setManualDosage}
-            placeholder="e.g. 500mg"
-            placeholderTextColor={theme.colors.textSecondary}
-          />
-
-          <Text style={styles.label}>Instructions</Text>
-          <TextInput
-            style={styles.input}
-            value={manualInstructions}
-            onChangeText={setManualInstructions}
-            placeholder="e.g. Take with food"
-            placeholderTextColor={theme.colors.textSecondary}
-          />
-
-          <View style={styles.formActions}>
-            <Pressable
-              style={({ pressed }) => [styles.submitButton, pressed && styles.buttonPressed]}
-              onPress={handleManualSubmit}
-            >
-              <Text style={styles.submitButtonText}>Continue →</Text>
-            </Pressable>
-            <Pressable onPress={() => setMode("camera")} style={styles.manualLink}>
-              <Text style={styles.manualLinkText}>← Use camera instead</Text>
-            </Pressable>
+          <View style={styles.fieldGroup}>
+            <Text style={styles.label}>Medication name</Text>
+            <TextInput
+              style={styles.input}
+              value={manualName}
+              onChangeText={setManualName}
+              placeholder="e.g. Metformin"
+              placeholderTextColor={theme.colors.textSecondary}
+              autoCapitalize="words"
+            />
           </View>
+
+          <View style={styles.fieldGroup}>
+            <Text style={styles.label}>Dosage</Text>
+            <TextInput
+              style={styles.input}
+              value={manualDosage}
+              onChangeText={setManualDosage}
+              placeholder="e.g. 500mg"
+              placeholderTextColor={theme.colors.textSecondary}
+            />
+          </View>
+
+          <View style={styles.fieldGroup}>
+            <Text style={styles.label}>Instructions (optional)</Text>
+            <TextInput
+              style={styles.input}
+              value={manualInstructions}
+              onChangeText={setManualInstructions}
+              placeholder="e.g. Take with food"
+              placeholderTextColor={theme.colors.textSecondary}
+            />
+          </View>
+
+          <Pressable
+            style={({ pressed }) => [
+              styles.submitButton,
+              pressed && styles.buttonPressed,
+            ]}
+            onPress={handleManualSubmit}
+          >
+            <Text style={styles.submitButtonText}>Continue →</Text>
+          </Pressable>
         </View>
-      )}
-    </SafeAreaView>
+      </SafeAreaView>
+    );
+  }
+
+  return (
+    <View style={styles.cameraContainer}>
+      <SafeAreaView style={styles.cameraInner}>
+        {/* Top — back + title */}
+        <View style={styles.cameraHeader}>
+          <Pressable onPress={() => router.back()}>
+            <Text style={styles.cameraBackText}>← Back</Text>
+          </Pressable>
+          <Text style={styles.cameraTitle}>Scan Label</Text>
+          <View style={{ width: 50 }} />
+        </View>
+
+        {/* Center — viewfinder */}
+        <View style={styles.viewfinderArea}>
+          <Animated.View
+            style={[styles.viewfinder, { transform: [{ scale: pulse }] }]}
+          >
+            {/* Corner brackets */}
+            <View style={[styles.corner, styles.cornerTL]} />
+            <View style={[styles.corner, styles.cornerTR]} />
+            <View style={[styles.corner, styles.cornerBL]} />
+            <View style={[styles.corner, styles.cornerBR]} />
+          </Animated.View>
+          <Text style={styles.viewfinderHint}>
+            Position the pill bottle label inside the frame
+          </Text>
+        </View>
+
+        {/* Bottom — actions */}
+        <View style={styles.cameraBottom}>
+          <Pressable
+            style={({ pressed }) => [
+              styles.captureButton,
+              pressed && styles.captureButtonPressed,
+              scanning && styles.buttonDisabled,
+            ]}
+            onPress={handleSimulateScan}
+            disabled={scanning}
+          >
+            {scanning ? (
+              <View style={styles.captureInner}>
+                <ActivityIndicator color={theme.colors.accent} />
+                <Text style={styles.captureTextScanning}>Reading label…</Text>
+              </View>
+            ) : (
+              <View style={styles.captureInner}>
+                <View style={styles.captureCircle} />
+                <Text style={styles.captureText}>Capture</Text>
+              </View>
+            )}
+          </Pressable>
+
+          <Pressable
+            onPress={() => setMode("manual")}
+            style={styles.manualLink}
+          >
+            <Text style={styles.manualLinkText}>Type it instead →</Text>
+          </Pressable>
+        </View>
+      </SafeAreaView>
+    </View>
   );
 }
 
+const CORNER_SIZE = 24;
+const CORNER_WIDTH = 3;
+
 const styles = StyleSheet.create({
-  container: {
+  // Camera mode
+  cameraContainer: {
     flex: 1,
-    backgroundColor: "#1A1A1A", // dark for camera mode
+    backgroundColor: "#111111",
   },
-  cameraView: {
+  cameraInner: {
     flex: 1,
     justifyContent: "space-between",
   },
-  overlay: {
-    flex: 1,
-    justifyContent: "center",
+  cameraHeader: {
+    flexDirection: "row",
     alignItems: "center",
+    justifyContent: "space-between",
+    paddingHorizontal: theme.spacing.lg,
+    paddingVertical: theme.spacing.md,
+  },
+  cameraBackText: {
+    fontFamily: theme.fonts.medium,
+    color: "#FFFFFF",
+    fontSize: theme.fontSizes.sm,
+    opacity: 0.8,
+  },
+  cameraTitle: {
+    fontFamily: theme.fonts.semiBold,
+    color: "#FFFFFF",
+    fontSize: theme.fontSizes.md,
+  },
+  viewfinderArea: {
+    alignItems: "center",
+    justifyContent: "center",
     paddingHorizontal: theme.spacing.lg,
   },
   viewfinder: {
-    width: "85%",
-    aspectRatio: 2.5,
+    width: "90%",
+    aspectRatio: 2.2,
+    borderRadius: theme.radii.md,
+    position: "relative",
+    marginBottom: theme.spacing.md,
+  },
+  corner: {
+    position: "absolute",
+    width: CORNER_SIZE,
+    height: CORNER_SIZE,
+  },
+  cornerTL: {
+    top: 0,
+    left: 0,
+    borderTopWidth: CORNER_WIDTH,
+    borderLeftWidth: CORNER_WIDTH,
+    borderColor: theme.colors.accent,
+    borderTopLeftRadius: theme.radii.sm,
+  },
+  cornerTR: {
+    top: 0,
+    right: 0,
+    borderTopWidth: CORNER_WIDTH,
+    borderRightWidth: CORNER_WIDTH,
+    borderColor: theme.colors.accent,
+    borderTopRightRadius: theme.radii.sm,
+  },
+  cornerBL: {
+    bottom: 0,
+    left: 0,
+    borderBottomWidth: CORNER_WIDTH,
+    borderLeftWidth: CORNER_WIDTH,
+    borderColor: theme.colors.accent,
+    borderBottomLeftRadius: theme.radii.sm,
+  },
+  cornerBR: {
+    bottom: 0,
+    right: 0,
+    borderBottomWidth: CORNER_WIDTH,
+    borderRightWidth: CORNER_WIDTH,
+    borderColor: theme.colors.accent,
+    borderBottomRightRadius: theme.radii.sm,
+  },
+  viewfinderHint: {
+    fontFamily: theme.fonts.regular,
+    color: "#FFFFFF",
+    fontSize: theme.fontSizes.sm,
+    textAlign: "center",
+    opacity: 0.7,
+    lineHeight: 22,
+  },
+  cameraBottom: {
+    paddingHorizontal: theme.spacing.lg,
+    paddingBottom: theme.spacing.xl,
+    gap: theme.spacing.md,
+    alignItems: "center",
+  },
+  captureButton: {
+    width: "100%",
+    backgroundColor: "rgba(255,255,255,0.1)",
     borderWidth: 2,
     borderColor: theme.colors.accent,
-    borderRadius: theme.radii.md,
-    marginBottom: theme.spacing.lg,
+    borderRadius: theme.radii.xl,
+    paddingVertical: theme.spacing.md,
   },
-  overlayText: {
-    color: "#FFFFFF",
-    fontSize: theme.fontSizes.md,
-    textAlign: "center",
-    opacity: 0.85,
+  captureButtonPressed: {
+    backgroundColor: "rgba(212,130,42,0.15)",
+    transform: [{ scale: 0.97 }],
   },
-  cameraActions: {
-    padding: theme.spacing.lg,
+  captureInner: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
     gap: theme.spacing.sm,
   },
-  scanButton: {
+  captureCircle: {
+    width: 16,
+    height: 16,
+    borderRadius: 8,
     backgroundColor: theme.colors.accent,
-    paddingVertical: theme.spacing.md,
-    borderRadius: theme.radii.lg,
-    alignItems: "center",
   },
-  scanButtonText: {
+  captureText: {
+    fontFamily: theme.fonts.bold,
     color: "#FFFFFF",
     fontSize: theme.fontSizes.lg,
-    fontWeight: "700",
+  },
+  captureTextScanning: {
+    fontFamily: theme.fonts.medium,
+    color: theme.colors.accent,
+    fontSize: theme.fontSizes.md,
   },
   manualLink: {
-    alignItems: "center",
     paddingVertical: theme.spacing.xs,
   },
   manualLinkText: {
+    fontFamily: theme.fonts.medium,
     color: theme.colors.accent,
     fontSize: theme.fontSizes.sm,
-    fontWeight: "500",
+    opacity: 0.9,
   },
-  // Manual form
-  manualForm: {
+  buttonDisabled: { opacity: 0.6 },
+  buttonPressed: {
+    backgroundColor: theme.colors.primaryLight,
+    transform: [{ scale: 0.97 }],
+  },
+  // Manual mode
+  manualContainer: {
     flex: 1,
     backgroundColor: theme.colors.background,
+  },
+  manualForm: {
+    flex: 1,
     padding: theme.spacing.lg,
   },
+  backLink: {
+    marginBottom: theme.spacing.md,
+  },
+  backLinkText: {
+    fontFamily: theme.fonts.medium,
+    color: theme.colors.accent,
+    fontSize: theme.fontSizes.sm,
+  },
   formTitle: {
+    fontFamily: theme.fonts.extraBold,
     fontSize: theme.fontSizes.xl,
-    fontWeight: "700",
     color: theme.colors.primary,
+    marginBottom: theme.spacing.xs,
+  },
+  formSub: {
+    fontFamily: theme.fonts.regular,
+    fontSize: theme.fontSizes.sm,
+    color: theme.colors.textSecondary,
     marginBottom: theme.spacing.lg,
   },
+  fieldGroup: {
+    marginBottom: theme.spacing.md,
+  },
   label: {
+    fontFamily: theme.fonts.semiBold,
     fontSize: theme.fontSizes.sm,
-    fontWeight: "600",
     color: theme.colors.textPrimary,
     marginBottom: theme.spacing.xs,
-    marginTop: theme.spacing.sm,
   },
   input: {
     borderWidth: 1.5,
@@ -222,27 +386,22 @@ const styles = StyleSheet.create({
     borderRadius: theme.radii.md,
     paddingHorizontal: theme.spacing.md,
     paddingVertical: theme.spacing.sm,
+    fontFamily: theme.fonts.regular,
     fontSize: theme.fontSizes.md,
     color: theme.colors.textPrimary,
     backgroundColor: theme.colors.surface,
   },
-  formActions: {
-    marginTop: theme.spacing.lg,
-    gap: theme.spacing.sm,
-  },
   submitButton: {
     backgroundColor: theme.colors.primary,
     paddingVertical: theme.spacing.md,
-    borderRadius: theme.radii.lg,
+    borderRadius: theme.radii.xl,
     alignItems: "center",
+    marginTop: theme.spacing.sm,
+    ...theme.shadows.card,
   },
   submitButtonText: {
+    fontFamily: theme.fonts.bold,
     color: theme.colors.textOnPrimary,
     fontSize: theme.fontSizes.lg,
-    fontWeight: "700",
-  },
-  buttonPressed: {
-    opacity: 0.85,
-    transform: [{ scale: 0.98 }],
   },
 });
