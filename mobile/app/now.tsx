@@ -18,11 +18,13 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { theme } from "../theme";
 import { useVelaStore } from "../store/useVelaStore";
 import { logDose } from "../api";
+import { useVoicePlayer } from "../hooks/useVoicePlayer";
 
 export default function NowScreen() {
   const router = useRouter();
   const { currentSlot, todaySlots, allTaken, markTaken, profile } = useVelaStore();
   const [logging, setLogging] = useState(false);
+  const { play, stop, isPlaying } = useVoicePlayer();
 
   // Card entrance animation
   const fadeIn = useRef(new Animated.Value(0)).current;
@@ -243,16 +245,26 @@ export default function NowScreen() {
           <Pressable
             style={({ pressed }) => [
               styles.voiceButton,
+              isPlaying && styles.voiceButtonActive,
               pressed && styles.voiceButtonPressed,
             ]}
             onPress={() => {
-              // Voice playback — placeholder for ElevenLabs
+              if (isPlaying) {
+                stop();
+              } else {
+                play({
+                  audioUrl: currentSlot.audioUrl,
+                  fallbackText: `It's time to take your ${currentSlot.medicationName}, ${currentSlot.dosage}. ${currentSlot.instructions}.`,
+                });
+              }
             }}
             accessibilityRole="button"
-            accessibilityLabel="Hear reminder"
+            accessibilityLabel={isPlaying ? "Stop reminder" : "Hear reminder"}
           >
-            <Text style={styles.voiceButtonIcon}>🔊</Text>
-            <Text style={styles.voiceButtonText}>Hear reminder</Text>
+            <Text style={styles.voiceButtonIcon}>{isPlaying ? "⏹" : "🔊"}</Text>
+            <Text style={styles.voiceButtonText}>
+              {isPlaying ? "Stop" : "Hear reminder"}
+            </Text>
           </Pressable>
         </View>
 
@@ -549,6 +561,10 @@ const styles = StyleSheet.create({
   voiceButtonPressed: {
     backgroundColor: theme.colors.accentSoft,
     transform: [{ scale: 0.97 }],
+  },
+  voiceButtonActive: {
+    borderColor: theme.colors.accent,
+    backgroundColor: theme.colors.accentSoft,
   },
   voiceButtonIcon: { fontSize: 20 },
   voiceButtonText: {
