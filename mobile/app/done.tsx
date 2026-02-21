@@ -1,7 +1,8 @@
 /**
  * Screen 5 — Done (End of Day)
  * "All done for today, Martha. Great job."
- * Warm golden full-screen card. This is what judges remember.
+ * Cozy nighttime theme — deep navy, warm amber glow, stars.
+ * This is what judges remember during deliberation.
  */
 import React, { useRef, useEffect } from "react";
 import {
@@ -19,6 +20,17 @@ import { useVelaStore } from "../store/useVelaStore";
 
 const { width } = Dimensions.get("window");
 
+// Nighttime palette
+const night = {
+  bg: "#1B2838",        // deep navy
+  bgLight: "#243447",   // slightly lighter navy for contrast
+  text: "#F5EFE0",      // warm off-white
+  textSoft: "#A8B5C4",  // muted blue-gray
+  amber: "#E8A84C",     // warm amber glow
+  amberSoft: "rgba(232, 168, 76, 0.12)",
+  amberGlow: "rgba(232, 168, 76, 0.06)",
+};
+
 export default function DoneScreen() {
   const router = useRouter();
   const { profile } = useVelaStore();
@@ -32,9 +44,12 @@ export default function DoneScreen() {
   const textSlide = useRef(new Animated.Value(15)).current;
   const subFade = useRef(new Animated.Value(0)).current;
   const buttonFade = useRef(new Animated.Value(0)).current;
+  const starsFade = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
     Animated.stagger(250, [
+      // Stars twinkle in
+      Animated.timing(starsFade, { toValue: 1, duration: 800, useNativeDriver: true }),
       // Glow circle expands
       Animated.parallel([
         Animated.spring(glowScale, { toValue: 1, tension: 40, friction: 7, useNativeDriver: true }),
@@ -57,6 +72,18 @@ export default function DoneScreen() {
   return (
     <SafeAreaView style={styles.container}>
       <View style={styles.content}>
+        {/* Decorative stars */}
+        <Animated.View style={[styles.starsContainer, { opacity: starsFade }]}>
+          <Text style={[styles.star, { top: "8%", left: "15%", fontSize: 10 }]}>✦</Text>
+          <Text style={[styles.star, { top: "12%", right: "20%", fontSize: 14 }]}>✦</Text>
+          <Text style={[styles.star, { top: "25%", left: "10%", fontSize: 8 }]}>✦</Text>
+          <Text style={[styles.star, { top: "18%", right: "12%", fontSize: 6 }]}>✦</Text>
+          <Text style={[styles.star, { top: "5%", left: "45%", fontSize: 12 }]}>✦</Text>
+          <Text style={[styles.star, { top: "30%", right: "30%", fontSize: 7 }]}>✦</Text>
+          <Text style={[styles.star, { bottom: "35%", left: "20%", fontSize: 9 }]}>✦</Text>
+          <Text style={[styles.star, { bottom: "30%", right: "15%", fontSize: 11 }]}>✦</Text>
+        </Animated.View>
+
         {/* Warm glow circle */}
         <Animated.View
           style={[
@@ -67,11 +94,11 @@ export default function DoneScreen() {
           <View style={styles.glowInner} />
         </Animated.View>
 
-        {/* Checkmark */}
+        {/* Moon icon in amber circle */}
         <Animated.View
           style={[styles.checkCircle, { transform: [{ scale: checkScale }] }]}
         >
-          <Text style={styles.checkmark}>✓</Text>
+          <Text style={styles.moonIcon}>🌙</Text>
         </Animated.View>
 
         {/* Main message */}
@@ -93,11 +120,11 @@ export default function DoneScreen() {
           <Text style={styles.subtext}>
             Every single one. You did great.
           </Text>
-          <Text style={styles.subtext2}>Get some rest ✨</Text>
+          <Text style={styles.subtext2}>Get some rest</Text>
         </Animated.View>
       </View>
 
-      {/* Bottom — vela branding + back link */}
+      {/* Bottom */}
       <Animated.View style={[styles.bottom, { opacity: buttonFade }]}>
         <Pressable
           style={styles.resetLink}
@@ -107,7 +134,6 @@ export default function DoneScreen() {
           <Text style={styles.resetText}>← Back to home</Text>
         </Pressable>
         <View style={styles.brandRow}>
-          <Text style={styles.brandIcon}>🕯️</Text>
           <Text style={styles.brandName}>Vela</Text>
         </View>
       </Animated.View>
@@ -120,7 +146,7 @@ const GLOW_SIZE = width * 0.6;
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#FAF0DC", // warmer gold-cream
+    backgroundColor: night.bg,
   },
   content: {
     flex: 1,
@@ -128,12 +154,21 @@ const styles = StyleSheet.create({
     alignItems: "center",
     paddingHorizontal: theme.spacing.lg,
   },
+  // Stars
+  starsContainer: {
+    ...StyleSheet.absoluteFillObject,
+  },
+  star: {
+    position: "absolute",
+    color: night.amber,
+    opacity: 0.5,
+  },
   // Glow
   glowOuter: {
     width: GLOW_SIZE,
     height: GLOW_SIZE,
     borderRadius: GLOW_SIZE / 2,
-    backgroundColor: "rgba(212, 130, 42, 0.06)",
+    backgroundColor: night.amberGlow,
     justifyContent: "center",
     alignItems: "center",
     position: "absolute",
@@ -142,36 +177,38 @@ const styles = StyleSheet.create({
     width: GLOW_SIZE * 0.6,
     height: GLOW_SIZE * 0.6,
     borderRadius: (GLOW_SIZE * 0.6) / 2,
-    backgroundColor: "rgba(212, 130, 42, 0.08)",
+    backgroundColor: night.amberSoft,
   },
-  // Check
+  // Moon circle
   checkCircle: {
     width: 80,
     height: 80,
     borderRadius: 40,
-    backgroundColor: theme.colors.accent,
+    backgroundColor: night.amber,
     justifyContent: "center",
     alignItems: "center",
     marginBottom: theme.spacing.lg,
-    ...theme.shadows.card,
+    shadowColor: night.amber,
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.4,
+    shadowRadius: 20,
+    elevation: 8,
   },
-  checkmark: {
-    fontSize: 40,
-    color: "#FFFFFF",
-    fontFamily: theme.fonts.bold,
+  moonIcon: {
+    fontSize: 36,
   },
   // Text
   headline: {
     fontFamily: theme.fonts.bold,
     fontSize: theme.fontSizes.xl,
-    color: theme.colors.primary,
+    color: night.text,
     textAlign: "center",
     lineHeight: 42,
   },
   name: {
     fontFamily: theme.fonts.extraBold,
     fontSize: theme.fontSizes.hero,
-    color: theme.colors.primary,
+    color: night.text,
     textAlign: "center",
     lineHeight: 60,
     letterSpacing: -0.5,
@@ -180,21 +217,21 @@ const styles = StyleSheet.create({
   divider: {
     width: 64,
     height: 3,
-    backgroundColor: theme.colors.accent,
+    backgroundColor: night.amber,
     borderRadius: theme.radii.full,
     marginVertical: theme.spacing.md,
   },
   subtext: {
     fontFamily: theme.fonts.regular,
     fontSize: theme.fontSizes.lg,
-    color: theme.colors.textSecondary,
+    color: night.textSoft,
     textAlign: "center",
     lineHeight: 34,
   },
   subtext2: {
     fontFamily: theme.fonts.regular,
     fontSize: theme.fontSizes.md,
-    color: theme.colors.textSecondary,
+    color: night.textSoft,
     textAlign: "center",
     marginTop: theme.spacing.sm,
   },
@@ -210,20 +247,18 @@ const styles = StyleSheet.create({
   },
   resetText: {
     fontFamily: theme.fonts.medium,
-    color: theme.colors.textSecondary,
+    color: night.textSoft,
     fontSize: theme.fontSizes.sm,
   },
   brandRow: {
     flexDirection: "row",
     alignItems: "center",
-    gap: theme.spacing.xs,
-    opacity: 0.5,
+    opacity: 0.4,
   },
-  brandIcon: { fontSize: 16 },
   brandName: {
     fontFamily: theme.fonts.semiBold,
     fontSize: 13,
-    color: theme.colors.accent,
+    color: night.amber,
     letterSpacing: 1.5,
     textTransform: "uppercase",
   },

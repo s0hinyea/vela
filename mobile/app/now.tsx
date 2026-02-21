@@ -41,21 +41,105 @@ export default function NowScreen() {
     return null;
   }
 
-  // No active slot right now
+  // No active slot right now — show today's progress
   if (!currentSlot) {
+    const taken = todaySlots.filter((s) => s.status === "taken");
+    const upcoming = todaySlots.filter((s) => s.status === "upcoming");
+
     return (
       <SafeAreaView style={styles.container}>
         <View style={styles.header}>
-          <Text style={styles.brandIcon}>🕯️</Text>
-          <Text style={styles.headerTitle}>Vela</Text>
+          <View style={styles.headerLeft}>
+            <Text style={styles.headerTitle}>Vela</Text>
+          </View>
+          {upcoming.length > 0 && (
+            <View style={styles.pillCounter}>
+              <Text style={styles.pillCounterText}>
+                {upcoming.length} upcoming
+              </Text>
+            </View>
+          )}
         </View>
-        <View style={styles.centered}>
-          <Text style={styles.noSlotEmoji}>🌿</Text>
-          <Text style={styles.noSlotTitle}>All caught up!</Text>
-          <Text style={styles.noSlotSub}>
-            No medications due right now.{"\n"}Check back later.
-          </Text>
-        </View>
+
+        <ScrollView
+          contentContainerStyle={styles.scrollContent}
+          showsVerticalScrollIndicator={false}
+        >
+          {/* Status message */}
+          <View style={styles.caughtUpHeader}>
+            <Text style={styles.caughtUpEmoji}>🌿</Text>
+            <View>
+              <Text style={styles.caughtUpTitle}>All caught up!</Text>
+              <Text style={styles.caughtUpSub}>
+                {upcoming.length > 0
+                  ? `Next medication is later today`
+                  : "No more medications today"}
+              </Text>
+            </View>
+          </View>
+
+          {/* Today's medication list */}
+          {todaySlots.length > 0 && (
+            <View style={styles.progressSection}>
+              <Text style={styles.progressLabel}>Today's medications</Text>
+              {todaySlots.map((slot) => (
+                <View key={slot.id} style={styles.progressRow}>
+                  <View
+                    style={[
+                      styles.statusDot,
+                      slot.status === "taken" && styles.statusDotTaken,
+                      slot.status === "upcoming" && styles.statusDotUpcoming,
+                    ]}
+                  >
+                    {slot.status === "taken" && (
+                      <Text style={styles.statusCheck}>✓</Text>
+                    )}
+                  </View>
+                  <View style={styles.progressInfo}>
+                    <Text
+                      style={[
+                        styles.progressMedName,
+                        slot.status === "taken" && styles.progressMedNameTaken,
+                      ]}
+                    >
+                      {slot.medicationName}
+                    </Text>
+                    <Text style={styles.progressMedDetail}>
+                      {slot.dosage} · {slot.scheduledTimeLabel}
+                    </Text>
+                  </View>
+                  <View
+                    style={[
+                      styles.statusBadge,
+                      slot.status === "taken" && styles.statusBadgeTaken,
+                      slot.status === "upcoming" && styles.statusBadgeUpcoming,
+                    ]}
+                  >
+                    <Text
+                      style={[
+                        styles.statusBadgeText,
+                        slot.status === "taken" && styles.statusBadgeTextTaken,
+                        slot.status === "upcoming" && styles.statusBadgeTextUpcoming,
+                      ]}
+                    >
+                      {slot.status === "taken" ? "Taken" : "Upcoming"}
+                    </Text>
+                  </View>
+                </View>
+              ))}
+            </View>
+          )}
+        </ScrollView>
+
+        {/* Add medication */}
+        <Pressable
+          style={({ pressed }) => [styles.addButton, pressed && styles.addButtonPressed]}
+          onPress={() => router.push("/scan")}
+          accessibilityRole="button"
+          accessibilityLabel="Add a new medication"
+        >
+          <Text style={styles.addButtonText}>+ Add medication</Text>
+        </Pressable>
       </SafeAreaView>
     );
   }
@@ -88,7 +172,6 @@ export default function NowScreen() {
       {/* Header */}
       <View style={styles.header}>
         <View style={styles.headerLeft}>
-          <Text style={styles.brandIcon}>🕯️</Text>
           <Text style={styles.headerTitle}>Vela</Text>
         </View>
         <View style={styles.pillCounter}>
@@ -202,12 +285,12 @@ export default function NowScreen() {
 
       {/* Add medication — caregiver access */}
       <Pressable
-        style={styles.addLink}
+        style={({ pressed }) => [styles.addButton, pressed && styles.addButtonPressed]}
         onPress={() => router.push("/scan")}
         accessibilityRole="button"
         accessibilityLabel="Add a new medication"
       >
-        <Text style={styles.addLinkText}>+ Add medication</Text>
+        <Text style={styles.addButtonText}>+ Add medication</Text>
       </Pressable>
     </SafeAreaView>
   );
@@ -230,9 +313,7 @@ const styles = StyleSheet.create({
   headerLeft: {
     flexDirection: "row",
     alignItems: "center",
-    gap: theme.spacing.xs,
   },
-  brandIcon: { fontSize: 22 },
   headerTitle: {
     fontFamily: theme.fonts.semiBold,
     fontSize: theme.fontSizes.sm,
@@ -251,26 +332,110 @@ const styles = StyleSheet.create({
     fontSize: theme.fontSizes.xs,
     color: theme.colors.accent,
   },
-  // Empty state
-  centered: {
-    flex: 1,
+  // Caught up state
+  caughtUpHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: theme.spacing.md,
+    backgroundColor: theme.colors.successSoft,
+    borderRadius: theme.radii.lg,
+    padding: theme.spacing.md,
+    marginBottom: theme.spacing.lg,
+    borderWidth: 1,
+    borderColor: theme.colors.success,
+  },
+  caughtUpEmoji: { fontSize: 32 },
+  caughtUpTitle: {
+    fontFamily: theme.fonts.bold,
+    fontSize: theme.fontSizes.md,
+    color: theme.colors.primary,
+  },
+  caughtUpSub: {
+    fontFamily: theme.fonts.regular,
+    fontSize: theme.fontSizes.xs,
+    color: theme.colors.textSecondary,
+    marginTop: 2,
+  },
+  // Progress list
+  progressSection: {
+    gap: theme.spacing.sm,
+  },
+  progressLabel: {
+    fontFamily: theme.fonts.semiBold,
+    fontSize: theme.fontSizes.sm,
+    color: theme.colors.textSecondary,
+    marginBottom: theme.spacing.xs,
+    textTransform: "uppercase",
+    letterSpacing: 0.8,
+  },
+  progressRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: theme.spacing.sm,
+    backgroundColor: theme.colors.surface,
+    borderRadius: theme.radii.lg,
+    padding: theme.spacing.md,
+    borderWidth: 1,
+    borderColor: theme.colors.borderLight,
+  },
+  statusDot: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: theme.colors.border,
     justifyContent: "center",
     alignItems: "center",
-    padding: theme.spacing.lg,
   },
-  noSlotEmoji: { fontSize: 56, marginBottom: theme.spacing.md },
-  noSlotTitle: {
+  statusDotTaken: {
+    backgroundColor: theme.colors.success,
+  },
+  statusDotUpcoming: {
+    backgroundColor: theme.colors.borderLight,
+  },
+  statusCheck: {
+    color: "#FFF",
+    fontSize: 14,
     fontFamily: theme.fonts.bold,
-    fontSize: theme.fontSizes.xl,
-    color: theme.colors.primary,
-    marginBottom: theme.spacing.sm,
   },
-  noSlotSub: {
-    fontFamily: theme.fonts.regular,
-    fontSize: theme.fontSizes.md,
+  progressInfo: {
+    flex: 1,
+  },
+  progressMedName: {
+    fontFamily: theme.fonts.semiBold,
+    fontSize: theme.fontSizes.sm,
+    color: theme.colors.textPrimary,
+  },
+  progressMedNameTaken: {
     color: theme.colors.textSecondary,
-    textAlign: "center",
-    lineHeight: 28,
+  },
+  progressMedDetail: {
+    fontFamily: theme.fonts.regular,
+    fontSize: theme.fontSizes.xs,
+    color: theme.colors.textSecondary,
+    marginTop: 2,
+  },
+  statusBadge: {
+    paddingHorizontal: theme.spacing.sm,
+    paddingVertical: 4,
+    borderRadius: theme.radii.full,
+    backgroundColor: theme.colors.border,
+  },
+  statusBadgeTaken: {
+    backgroundColor: theme.colors.successSoft,
+  },
+  statusBadgeUpcoming: {
+    backgroundColor: theme.colors.accentSoft,
+  },
+  statusBadgeText: {
+    fontFamily: theme.fonts.medium,
+    fontSize: 12,
+    color: theme.colors.textSecondary,
+  },
+  statusBadgeTextTaken: {
+    color: theme.colors.success,
+  },
+  statusBadgeTextUpcoming: {
+    color: theme.colors.accent,
   },
   // Scroll
   scrollContent: {
@@ -430,15 +595,24 @@ const styles = StyleSheet.create({
     fontSize: 11,
     color: theme.colors.textSecondary,
   },
-  // Add link
-  addLink: {
-    alignItems: "center",
+  // Add button
+  addButton: {
+    marginHorizontal: theme.spacing.lg,
+    marginBottom: theme.spacing.lg,
     paddingVertical: theme.spacing.sm,
-    paddingBottom: theme.spacing.lg,
+    borderRadius: theme.radii.xl,
+    borderWidth: 2,
+    borderColor: theme.colors.accent,
+    alignItems: "center",
+    backgroundColor: theme.colors.accentSoft,
   },
-  addLinkText: {
-    fontFamily: theme.fonts.medium,
-    color: theme.colors.textSecondary,
-    fontSize: theme.fontSizes.sm,
+  addButtonPressed: {
+    backgroundColor: theme.colors.accent,
+    transform: [{ scale: 0.97 }],
+  },
+  addButtonText: {
+    fontFamily: theme.fonts.semiBold,
+    color: theme.colors.accent,
+    fontSize: theme.fontSizes.md,
   },
 });

@@ -367,7 +367,6 @@ const styles = StyleSheet.create({
     color: "#FFF",
     fontSize: theme.fontSizes.sm,
     textAlign: "center",
-    opacity: 0.7,
     lineHeight: 22,
   },
   // Bottom

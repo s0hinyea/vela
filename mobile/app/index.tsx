@@ -19,11 +19,11 @@ import { useVelaStore } from "../store/useVelaStore";
 import { fetchProfile, fetchTodaySchedule } from "../api";
 import { MOCK_PROFILE } from "../mocks";
 
-function getTimeOfDay(): { label: string; emoji: string } {
+function getTimeOfDay(): string {
   const hour = new Date().getHours();
-  if (hour < 12) return { label: "morning", emoji: "🌅" };
-  if (hour < 17) return { label: "afternoon", emoji: "☀️" };
-  return { label: "evening", emoji: "🌙" };
+  if (hour < 12) return "morning";
+  if (hour < 17) return "afternoon";
+  return "evening";
 }
 
 export default function GreetingScreen() {
@@ -72,29 +72,32 @@ export default function GreetingScreen() {
     return (
       <SafeAreaView style={styles.container}>
         <View style={styles.loadingContainer}>
-          <Text style={styles.loadingCandle}>🕯️</Text>
+          <Text style={styles.loadingBrand}>Vela</Text>
           <ActivityIndicator size="small" color={theme.colors.accent} style={{ marginTop: 16 }} />
         </View>
       </SafeAreaView>
     );
   }
 
-  const { label, emoji } = getTimeOfDay();
+  const timeOfDay = getTimeOfDay();
   const senior = profile?.seniorName ?? "Friend";
 
   return (
     <SafeAreaView style={styles.container}>
       <View style={styles.content}>
-        {/* Top — Vela branding */}
-        <View style={styles.brandRow}>
-          <Text style={styles.brandIcon}>🕯️</Text>
+        {/* Top — Vela branding (triple-tap = skip to Done screen) */}
+        <Pressable
+          style={styles.brandRow}
+          onLongPress={() => router.push("/done")}
+          delayLongPress={300}
+        >
           <Text style={styles.brandName}>Vela</Text>
-        </View>
+        </Pressable>
 
         {/* Center — greeting */}
         <View style={styles.greetingBlock}>
           <Animated.Text style={[styles.timeLabel, { opacity: fadeGreeting }]}>
-            Good {label} {emoji}
+            Good {timeOfDay}
           </Animated.Text>
           <Animated.Text
             style={[
@@ -140,8 +143,11 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     alignItems: "center",
   },
-  loadingCandle: {
-    fontSize: 48,
+  loadingBrand: {
+    fontFamily: theme.fonts.bold,
+    fontSize: theme.fontSizes.xl,
+    color: theme.colors.accent,
+    letterSpacing: 2,
   },
   content: {
     flex: 1,
@@ -154,10 +160,6 @@ const styles = StyleSheet.create({
   brandRow: {
     flexDirection: "row",
     alignItems: "center",
-    gap: theme.spacing.xs,
-  },
-  brandIcon: {
-    fontSize: 24,
   },
   brandName: {
     fontFamily: theme.fonts.semiBold,
@@ -202,7 +204,7 @@ const styles = StyleSheet.create({
   // Button
   button: {
     backgroundColor: theme.colors.primary,
-    paddingVertical: theme.spacing.md,
+    paddingVertical: theme.spacing.sm,
     paddingHorizontal: theme.spacing.lg,
     borderRadius: theme.radii.xl,
     flexDirection: "row",
@@ -218,7 +220,7 @@ const styles = StyleSheet.create({
   buttonText: {
     fontFamily: theme.fonts.bold,
     color: theme.colors.textOnPrimary,
-    fontSize: theme.fontSizes.lg,
+    fontSize: theme.fontSizes.md,
   },
   buttonArrow: {
     fontFamily: theme.fonts.bold,
