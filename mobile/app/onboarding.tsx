@@ -13,6 +13,7 @@ import {
   Alert,
   KeyboardAvoidingView,
   Platform,
+  DeviceEventEmitter,
 } from "react-native";
 import { useRouter } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -48,9 +49,7 @@ export default function OnboardingScreen() {
         return;
       }
 
-      import("react-native").then(({ DeviceEventEmitter }) => {
-        DeviceEventEmitter.emit("seniorNameConfigured");
-      });
+      DeviceEventEmitter.emit("seniorNameConfigured");
 
       // Done onboarding — head to the greeting screen
       router.replace("/");
