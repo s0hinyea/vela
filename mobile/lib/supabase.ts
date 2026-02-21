@@ -2,7 +2,7 @@
  * Supabase client for Vela mobile app.
  * Uses expo-secure-store for session persistence across app restarts.
  */
-import "react-native-url-polyfill/dist/polyfill";
+import "react-native-url-polyfill/auto";
 import { createClient } from "@supabase/supabase-js";
 import * as SecureStore from "expo-secure-store";
 
