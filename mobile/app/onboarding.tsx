@@ -52,7 +52,7 @@ export default function OnboardingScreen() {
       DeviceEventEmitter.emit("seniorNameConfigured");
 
       // Done onboarding — head to the greeting screen
-      router.replace("/");
+      router.replace("/greeting");
     } catch (e: any) {
       Alert.alert("Error", e.message || "Something went wrong.");
     } finally {

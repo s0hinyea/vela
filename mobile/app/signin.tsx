@@ -44,7 +44,7 @@ export default function SignInScreen() {
         Alert.alert("Sign in failed", error);
         return;
       }
-      router.replace("/");
+      router.replace("/greeting");
     } catch (e: any) {
       Alert.alert("Error", e.message || "Something went wrong.");
     } finally {

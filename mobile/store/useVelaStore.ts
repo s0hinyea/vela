@@ -32,12 +32,17 @@ export const useVelaStore = create<VelaStore>((set) => ({
 
   setMedications: (meds) => set({ medications: meds }),
 
-  setSchedule: (slots, allTaken) =>
+  setSchedule: (slots, allTaken) => {
+    // Pick the first slot that hasn't been taken yet as the "current" one
+    const nextUntaken = slots.find(
+      (s) => s.status === "due" || s.status === "upcoming"
+    ) ?? null;
     set({
       todaySlots: slots,
-      currentSlot: slots.find((s) => s.status === "due") ?? null,
+      currentSlot: nextUntaken,
       allTaken,
-    }),
+    });
+  },
 
   markTaken: (slotId) =>
     set((state) => {
@@ -46,23 +51,22 @@ export const useVelaStore = create<VelaStore>((set) => ({
           ? { ...s, status: "taken" as const, takenAt: new Date().toISOString() }
           : s
       );
-      const nextDue = updated.find((s) => s.status === "due") ?? null;
+      // Pick the next untaken slot
+      const nextUntaken = updated.find(
+        (s) => s.status === "due" || s.status === "upcoming"
+      ) ?? null;
       const allTaken = updated.every(
         (s) => s.status === "taken" || s.status === "missed"
       );
-      return { todaySlots: updated, currentSlot: nextDue, allTaken };
+      return { todaySlots: updated, currentSlot: nextUntaken, allTaken };
     }),
 
   forceDue: () =>
     set((state) => {
       const next = state.todaySlots.find((s) => s.status === "upcoming");
       if (!next) return state;
-      const updated = state.todaySlots.map((s) =>
-        s.id === next.id ? { ...s, status: "due" as const } : s
-      );
       return {
-        todaySlots: updated,
-        currentSlot: updated.find((s) => s.status === "due") ?? null,
+        currentSlot: next,
       };
     }),
 

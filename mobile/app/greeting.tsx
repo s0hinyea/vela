@@ -156,7 +156,7 @@ export default function GreetingScreen() {
               styles.button,
               pressed && styles.buttonPressed,
             ]}
-            onPress={() => router.push("/now")}
+            onPress={() => router.replace("/(tabs)")}
             accessibilityRole="button"
             accessibilityLabel="See today's medications"
           >

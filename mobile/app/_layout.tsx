@@ -78,7 +78,6 @@ export default function RootLayout() {
       segments[0] === "signup" ||
       segments[0] === "signin";
     
-    // We only want to protect the top-level route if it's explicitly onboarding
     const onOnboarding = segments[0] === "onboarding";
 
     if (!user && !inAuthGroup) {
@@ -88,10 +87,10 @@ export default function RootLayout() {
       // 2. Signed in, but hasn't named senior → Onboarding
       if (!hasSeniorConfigured && !onOnboarding) {
         router.replace("/onboarding");
-      }
-      // 3. Signed in, HAS named senior, but still on auth/onboarding screens → Home
+      } 
+      // 3. Signed in, HAS named senior, but still on auth/onboarding screens → Greeting
       else if (hasSeniorConfigured && (inAuthGroup || onOnboarding)) {
-        router.replace("/");
+        router.replace("/greeting");
       }
     }
   }, [user, authLoading, fontsLoaded, profileLoaded, hasSeniorConfigured, segments]);

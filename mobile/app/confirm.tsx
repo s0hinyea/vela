@@ -17,6 +17,7 @@ import {
 } from "react-native";
 import { useRouter, useLocalSearchParams } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
+import DateTimePicker from "@react-native-community/datetimepicker";
 import { theme } from "../theme";
 import { checkInteractions, saveMedication } from "../api";
 import { useVelaStore } from "../store/useVelaStore";
@@ -40,13 +41,27 @@ export default function ConfirmScreen() {
   const [checkingInteractions, setCheckingInteractions] = useState(false);
   const [saving, setSaving] = useState(false);
 
-  // Editable fields
-  const [editableInstructions, setEditableInstructions] = useState(scanned?.instructions || "");
-  const [editableTimes, setEditableTimes] = useState<string[]>(scanned?.suggestedTimes || []);
+  // Convert HH:MM string to local Date object for the picker
+  const parseTime = (timeStr: string) => {
+    const [h, m] = timeStr.split(":");
+    const d = new Date();
+    d.setHours(parseInt(h || "8", 10), parseInt(m || "0", 10), 0, 0);
+    return d;
+  };
 
-  const updateTime = (index: number, val: string) => {
+  // Convert Date object back to HH:MM for backend
+  const formatTime = (d: Date) => {
+    return d.toLocaleTimeString("en-US", { hour12: false, hour: "2-digit", minute: "2-digit" });
+  };
+
+  const [editableInstructions, setEditableInstructions] = useState(scanned?.instructions || "");
+  const [editableTimes, setEditableTimes] = useState<Date[]>(
+    (scanned?.suggestedTimes || []).map(parseTime)
+  );
+
+  const updateTime = (index: number, newDate: Date) => {
     const newTimes = [...editableTimes];
-    newTimes[index] = val;
+    newTimes[index] = newDate;
     setEditableTimes(newTimes);
   };
 
@@ -91,9 +106,9 @@ export default function ConfirmScreen() {
         profileId: profile.id,
         scanned: { ...scanned, instructions: editableInstructions },
         interactions: warnings,
-        finalTimes: editableTimes.filter(t => t.trim().length > 0), // Filter out empties
+        finalTimes: editableTimes.map(formatTime),
       });
-      router.replace("/now");
+      router.replace("/(tabs)");
     } catch {
       Alert.alert("Error", "Could not save medication. Please try again.");
     } finally {
@@ -192,15 +207,17 @@ export default function ConfirmScreen() {
             <View style={styles.detailItem}>
               <Text style={styles.detailIcon}>⏰</Text>
               <View style={{ flex: 1 }}>
-                <Text style={styles.detailLabel}>Scheduled Times (Tap to edit)</Text>
+                <Text style={styles.detailLabel}>Scheduled Times (Edit)</Text>
                 {editableTimes.map((t, i) => (
                   <View key={i} style={styles.timeInputRow}>
-                    <TextInput
-                      style={styles.timeInput}
+                    <DateTimePicker
                       value={t}
-                      onChangeText={(val) => updateTime(i, val)}
-                      placeholder="HH:MM"
-                      keyboardType="numbers-and-punctuation"
+                      mode="time"
+                      display="default"
+                      onChange={(event, date) => {
+                        if (date) updateTime(i, date);
+                      }}
+                      themeVariant="light"
                     />
                   </View>
                 ))}

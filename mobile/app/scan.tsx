@@ -18,6 +18,7 @@ import {
 import { useRouter } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { CameraView, useCameraPermissions } from "expo-camera";
+import DateTimePicker from "@react-native-community/datetimepicker";
 import { theme } from "../theme";
 import { scanLabel } from "../api";
 
@@ -52,6 +53,12 @@ export default function ScanScreen() {
   const [manualName, setManualName] = useState("");
   const [manualDosage, setManualDosage] = useState("");
   const [manualInstructions, setManualInstructions] = useState("");
+  const [manualTime, setManualTime] = useState(new Date(new Date().setHours(8, 0, 0, 0))); // Default 8:00 AM
+
+  // Format Date to backend HH:MM (24h)
+  const formatTo24Hour = (d: Date) => {
+    return d.toLocaleTimeString("en-US", { hour12: false, hour: "2-digit", minute: "2-digit" });
+  };
 
   const handleCapture = async () => {
     if (!cameraRef.current || !cameraReady) return;
@@ -107,7 +114,7 @@ export default function ScanScreen() {
       dosage: manualDosage.trim(),
       form: "tablet" as const,
       frequency: "once" as const,
-      suggestedTimes: ["08:00"],
+      suggestedTimes: [formatTo24Hour(manualTime)],
       instructions: manualInstructions.trim() || "As directed",
       color: null,
       confidence: 1,
@@ -150,6 +157,20 @@ export default function ScanScreen() {
               placeholder="e.g. 500mg"
               placeholderTextColor={theme.colors.textSecondary}
             />
+          </View>
+          <View style={styles.fieldGroup}>
+            <Text style={styles.label}>First dose time</Text>
+            <View style={styles.timePickerContainer}>
+              <DateTimePicker
+                value={manualTime}
+                mode="time"
+                display="default"
+                onChange={(event, date) => {
+                  if (date) setManualTime(date);
+                }}
+                themeVariant="light"
+              />
+            </View>
           </View>
           <View style={styles.fieldGroup}>
             <Text style={styles.label}>Instructions (optional)</Text>
@@ -504,10 +525,13 @@ const styles = StyleSheet.create({
   },
   fieldGroup: { marginBottom: theme.spacing.md },
   label: {
-    fontFamily: theme.fonts.semiBold,
-    fontSize: theme.fontSizes.sm,
+    fontFamily: theme.fonts.medium,
+    fontSize: theme.fontSizes.md,
     color: theme.colors.textPrimary,
-    marginBottom: theme.spacing.xs,
+  },
+  timePickerContainer: {
+    alignItems: "flex-start",
+    marginTop: theme.spacing.xs,
   },
   input: {
     borderWidth: 1.5,

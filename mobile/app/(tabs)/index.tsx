@@ -3,7 +3,7 @@
  * The heart of Vela. One medication, one button, nothing else.
  * Feels like a calm, warm card — not a medical dashboard.
  */
-import React, { useState, useRef, useEffect } from "react";
+import React, { useState, useRef, useEffect, useCallback } from "react";
 import {
   View,
   Text,
@@ -13,24 +13,41 @@ import {
   Animated,
   ScrollView,
 } from "react-native";
-import { useRouter } from "expo-router";
+import { useRouter, useFocusEffect } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { theme } from "../theme";
-import { useVelaStore } from "../store/useVelaStore";
-import { logDose } from "../api";
-import { useVoicePlayer } from "../hooks/useVoicePlayer";
-import { useAuth } from "../hooks/useAuth";
+import { theme } from "../../theme";
+import { useVelaStore } from "../../store/useVelaStore";
+import { logDose, fetchMedications, fetchTodaySchedule } from "../../api";
+import { useVoicePlayer } from "../../hooks/useVoicePlayer";
+import { useAuth } from "../../hooks/useAuth";
 
 export default function NowScreen() {
   const router = useRouter();
-  const { currentSlot, todaySlots, allTaken, markTaken, profile, forceDue } = useVelaStore();
-  const { signOut } = useAuth();
+  const { currentSlot, todaySlots, allTaken, markTaken, profile, forceDue, setSchedule, setMedications } = useVelaStore();
   const [logging, setLogging] = useState(false);
   const { play, stop, isPlaying } = useVoicePlayer();
 
   // Card entrance animation
   const fadeIn = useRef(new Animated.Value(0)).current;
   const slideUp = useRef(new Animated.Value(30)).current;
+
+  // Refetch schedule when screen comes into focus
+  useFocusEffect(
+    useCallback(() => {
+      async function refresh() {
+        if (!profile) return;
+        try {
+          const meds = await fetchMedications(profile.id);
+          setMedications(meds);
+          const schedule = await fetchTodaySchedule(profile.id);
+          setSchedule(schedule.slots, schedule.allTaken);
+        } catch (e) {
+          console.error("Failed to refresh schedule:", e);
+        }
+      }
+      refresh();
+    }, [profile?.id])
+  );
 
   useEffect(() => {
     Animated.parallel([
@@ -45,115 +62,26 @@ export default function NowScreen() {
     return null;
   }
 
-  // No active slot right now — show today's progress
+  // No slots at all — empty state (brand new user)
   if (!currentSlot) {
-    const taken = todaySlots.filter((s) => s.status === "taken");
-    const upcoming = todaySlots.filter((s) => s.status === "upcoming");
-
     return (
       <SafeAreaView style={styles.container}>
         <View style={styles.header}>
           <View style={styles.headerTitleRow}>
-            <Pressable style={styles.headerLeft} onLongPress={forceDue} delayLongPress={300}>
-              <Text style={styles.headerTitle}>Vela</Text>
-            </Pressable>
-            {upcoming.length > 0 && (
-              <View style={styles.pillCounter}>
-                <Text style={styles.pillCounterText}>
-                  {upcoming.length} upcoming
-                </Text>
-              </View>
-            )}
+            <Text style={styles.headerTitle}>Vela</Text>
           </View>
-          <Pressable onPress={signOut} style={styles.signOutButton}>
-            <Text style={styles.signOutText}>Sign out</Text>
-          </Pressable>
         </View>
 
-        <ScrollView
-          contentContainerStyle={styles.scrollContent}
-          showsVerticalScrollIndicator={false}
-        >
-          {/* Status message */}
-          <View style={styles.caughtUpHeader}>
-            <Text style={styles.caughtUpEmoji}>🌿</Text>
-            <View>
-              <Text style={styles.caughtUpTitle}>All caught up!</Text>
-              <Text style={styles.caughtUpSub}>
-                {upcoming.length > 0
-                  ? `Next medication is later today`
-                  : todaySlots.length > 0
-                  ? "No more medications today"
-                  : "Welcome to Vela"}
-              </Text>
-            </View>
+        <View style={styles.emptyContainer}>
+          <View style={styles.emptyStateCard}>
+            <Text style={styles.emptyStateEmoji}>✨</Text>
+            <Text style={styles.emptyStateTitle}>Welcome to Vela</Text>
+            <Text style={styles.emptyStateSub}>
+              Tap the button below to scan your first pill bottle or prescription label.
+            </Text>
           </View>
+        </View>
 
-          {/* Empty state if nothing scheduled at all */}
-          {todaySlots.length === 0 && (
-            <View style={styles.emptyStateCard}>
-              <Text style={styles.emptyStateEmoji}>✨</Text>
-              <Text style={styles.emptyStateTitle}>Your schedule is empty</Text>
-              <Text style={styles.emptyStateSub}>
-                Tap the button below to scan your first pill bottle or prescription label.
-              </Text>
-            </View>
-          )}
-
-          {/* Today's medication list */}
-          {todaySlots.length > 0 && (
-            <View style={styles.progressSection}>
-              <Text style={styles.progressLabel}>Today's medications</Text>
-              {todaySlots.map((slot) => (
-                <View key={slot.id} style={styles.progressRow}>
-                  <View
-                    style={[
-                      styles.statusDot,
-                      slot.status === "taken" && styles.statusDotTaken,
-                      slot.status === "upcoming" && styles.statusDotUpcoming,
-                    ]}
-                  >
-                    {slot.status === "taken" && (
-                      <Text style={styles.statusCheck}>✓</Text>
-                    )}
-                  </View>
-                  <View style={styles.progressInfo}>
-                    <Text
-                      style={[
-                        styles.progressMedName,
-                        slot.status === "taken" && styles.progressMedNameTaken,
-                      ]}
-                    >
-                      {slot.medicationName}
-                    </Text>
-                    <Text style={styles.progressMedDetail}>
-                      {slot.dosage} · {slot.scheduledTimeLabel}
-                    </Text>
-                  </View>
-                  <View
-                    style={[
-                      styles.statusBadge,
-                      slot.status === "taken" && styles.statusBadgeTaken,
-                      slot.status === "upcoming" && styles.statusBadgeUpcoming,
-                    ]}
-                  >
-                    <Text
-                      style={[
-                        styles.statusBadgeText,
-                        slot.status === "taken" && styles.statusBadgeTextTaken,
-                        slot.status === "upcoming" && styles.statusBadgeTextUpcoming,
-                      ]}
-                    >
-                      {slot.status === "taken" ? "Taken" : "Upcoming"}
-                    </Text>
-                  </View>
-                </View>
-              ))}
-            </View>
-          )}
-        </ScrollView>
-
-        {/* Add medication */}
         <Pressable
           style={({ pressed }) => [styles.addButton, pressed && styles.addButtonPressed]}
           onPress={() => router.push("/scan")}
@@ -201,9 +129,6 @@ export default function NowScreen() {
             <Text style={styles.pillCounterText}>{todaySlots.length} meds today</Text>
           </View>
         </View>
-        <Pressable onPress={signOut} style={styles.signOutButton}>
-          <Text style={styles.signOutText}>Sign out</Text>
-        </Pressable>
       </View>
 
       <ScrollView
@@ -410,6 +335,12 @@ const styles = StyleSheet.create({
     marginTop: 2,
   },
   // Empty State
+  emptyContainer: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+    paddingHorizontal: theme.spacing.lg,
+  },
   emptyStateCard: {
     alignItems: "center",
     justifyContent: "center",
