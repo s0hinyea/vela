@@ -16,7 +16,7 @@ import { useRouter } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { theme } from "../theme";
 import { useVelaStore } from "../store/useVelaStore";
-import { fetchProfile, fetchTodaySchedule } from "../api";
+import { fetchProfile, fetchTodaySchedule, fetchMedications } from "../api";
 import { MOCK_PROFILE, DEMO_MODE } from "../mocks";
 import { useAuth } from "../hooks/useAuth";
 import { useNotifications } from "../hooks/useNotifications";
@@ -67,8 +67,14 @@ export default function GreetingScreen() {
               caregiverName: data.caregiver_name || "Caregiver",
               createdAt: data.created_at,
             });
+
+            // Load real data from the backend
+            const meds = await fetchMedications(data.id);
+            useVelaStore.getState().setMedications(meds);
+
+            const schedule = await fetchTodaySchedule(data.id);
+            setSchedule(schedule.slots, schedule.allTaken);
           }
-          // TODO: load schedule from Supabase when backend integrates
         }
       } catch (e) {
         console.error("Failed to load profile", e);

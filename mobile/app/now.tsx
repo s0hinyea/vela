@@ -82,10 +82,23 @@ export default function NowScreen() {
               <Text style={styles.caughtUpSub}>
                 {upcoming.length > 0
                   ? `Next medication is later today`
-                  : "No more medications today"}
+                  : todaySlots.length > 0
+                  ? "No more medications today"
+                  : "Welcome to Vela"}
               </Text>
             </View>
           </View>
+
+          {/* Empty state if nothing scheduled at all */}
+          {todaySlots.length === 0 && (
+            <View style={styles.emptyStateCard}>
+              <Text style={styles.emptyStateEmoji}>✨</Text>
+              <Text style={styles.emptyStateTitle}>Your schedule is empty</Text>
+              <Text style={styles.emptyStateSub}>
+                Tap the button below to scan your first pill bottle or prescription label.
+              </Text>
+            </View>
+          )}
 
           {/* Today's medication list */}
           {todaySlots.length > 0 && (
@@ -395,6 +408,37 @@ const styles = StyleSheet.create({
     fontSize: theme.fontSizes.xs,
     color: theme.colors.textSecondary,
     marginTop: 2,
+  },
+  // Empty State
+  emptyStateCard: {
+    alignItems: "center",
+    justifyContent: "center",
+    padding: theme.spacing.xl,
+    backgroundColor: theme.colors.surface,
+    borderRadius: theme.radii.xl,
+    borderWidth: 1,
+    borderColor: theme.colors.borderLight,
+    borderStyle: "dashed",
+    marginTop: theme.spacing.lg,
+  },
+  emptyStateEmoji: {
+    fontSize: 48,
+    marginBottom: theme.spacing.md,
+  },
+  emptyStateTitle: {
+    fontFamily: theme.fonts.bold,
+    fontSize: theme.fontSizes.lg,
+    color: theme.colors.primary,
+    marginBottom: theme.spacing.sm,
+    textAlign: "center",
+  },
+  emptyStateSub: {
+    fontFamily: theme.fonts.regular,
+    fontSize: theme.fontSizes.sm,
+    color: theme.colors.textSecondary,
+    textAlign: "center",
+    lineHeight: 22,
+    paddingHorizontal: theme.spacing.md,
   },
   // Progress list
   progressSection: {
