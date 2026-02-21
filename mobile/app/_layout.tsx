@@ -1,7 +1,7 @@
 import { Stack, useRouter, useSegments } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import { SafeAreaProvider } from "react-native-safe-area-context";
-import { ActivityIndicator, View, Text } from "react-native";
+import { ActivityIndicator, View, Text, DeviceEventEmitter } from "react-native";
 import { useEffect, useState } from "react";
 import {
   useFonts,
@@ -48,6 +48,12 @@ export default function RootLayout() {
           setProfileLoaded(true);
         });
     });
+
+    const sub = DeviceEventEmitter.addListener("seniorNameConfigured", () => {
+      setHasSeniorConfigured(true);
+    });
+
+    return () => sub.remove();
   }, [user]);
 
   // Route protection: redirect based on auth + profile state

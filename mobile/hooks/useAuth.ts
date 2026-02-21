@@ -65,7 +65,7 @@ export function useAuth(): AuthState {
         id: data.user.id,
         caregiver_name: caregiverName,
         caregiver_pin: caregiverPin,
-        senior_name: null, // set later in onboarding
+        senior_name: "", // set later in onboarding, table requires NOT NULL
       });
 
       if (profileError) {

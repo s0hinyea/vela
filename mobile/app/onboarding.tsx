@@ -48,6 +48,10 @@ export default function OnboardingScreen() {
         return;
       }
 
+      import("react-native").then(({ DeviceEventEmitter }) => {
+        DeviceEventEmitter.emit("seniorNameConfigured");
+      });
+
       // Done onboarding — head to the greeting screen
       router.replace("/");
     } catch (e: any) {
