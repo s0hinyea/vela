@@ -1,5 +1,6 @@
 /**
  * useAuth — Supabase auth state hook.
+ * Works with Person B's existing profiles table.
  * Provides user, session, loading state, and auth actions.
  */
 import { useEffect, useState, useCallback } from "react";
@@ -10,10 +11,14 @@ interface AuthState {
   user: User | null;
   session: Session | null;
   loading: boolean;
-  signUp: (email: string, password: string) => Promise<{ error: string | null; user: User | null }>;
+  signUp: (
+    email: string,
+    password: string,
+    caregiverName: string,
+    caregiverPin: string
+  ) => Promise<{ error: string | null }>;
   signIn: (email: string, password: string) => Promise<{ error: string | null }>;
   signOut: () => Promise<void>;
-  createProfile: (caregiverName: string, caregiverPin: string, seniorName?: string) => Promise<{ error: string | null }>;
 }
 
 export function useAuth(): AuthState {
@@ -30,24 +35,54 @@ export function useAuth(): AuthState {
     });
 
     // Listen for auth changes
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      (_event, session) => {
-        setSession(session);
-        setUser(session?.user ?? null);
-      }
-    );
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((_event, session) => {
+      setSession(session);
+      setUser(session?.user ?? null);
+    });
 
     return () => subscription.unsubscribe();
   }, []);
 
-  const signUp = useCallback(async (email: string, password: string) => {
-    const { data, error } = await supabase.auth.signUp({ email, password });
-    if (error) return { error: error.message, user: null };
-    return { error: null, user: data.user };
-  }, []);
+  const signUp = useCallback(
+    async (
+      email: string,
+      password: string,
+      caregiverName: string,
+      caregiverPin: string
+    ) => {
+      // 1. Create Supabase auth user
+      const { data, error: authError } = await supabase.auth.signUp({
+        email,
+        password,
+      });
+      if (authError) return { error: authError.message };
+      if (!data.user) return { error: "Sign up failed — no user returned." };
+
+      // 2. Insert into Person B's existing profiles table
+      const { error: profileError } = await supabase.from("profiles").insert({
+        id: data.user.id,
+        caregiver_name: caregiverName,
+        caregiver_pin: caregiverPin,
+        senior_name: null, // set later in onboarding
+      });
+
+      if (profileError) {
+        console.error("Profile insert error:", profileError);
+        return { error: profileError.message };
+      }
+
+      return { error: null };
+    },
+    []
+  );
 
   const signIn = useCallback(async (email: string, password: string) => {
-    const { error } = await supabase.auth.signInWithPassword({ email, password });
+    const { error } = await supabase.auth.signInWithPassword({
+      email,
+      password,
+    });
     if (error) return { error: error.message };
     return { error: null };
   }, []);
@@ -56,22 +91,5 @@ export function useAuth(): AuthState {
     await supabase.auth.signOut();
   }, []);
 
-  const createProfile = useCallback(
-    async (caregiverName: string, caregiverPin: string, seniorName?: string) => {
-      if (!user) return { error: "Not authenticated" };
-
-      const { error } = await supabase.from("profiles").insert({
-        id: user.id,
-        caregiver_name: caregiverName,
-        caregiver_pin: caregiverPin,
-        senior_name: seniorName ?? null,
-      });
-
-      if (error) return { error: error.message };
-      return { error: null };
-    },
-    [user]
-  );
-
-  return { user, session, loading, signUp, signIn, signOut, createProfile };
+  return { user, session, loading, signUp, signIn, signOut };
 }

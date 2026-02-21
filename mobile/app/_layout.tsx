@@ -41,10 +41,8 @@ export default function RootLayout() {
       segments[0] === "signin";
 
     if (!user && !inAuthGroup) {
-      // Not authenticated → go to welcome
       router.replace("/welcome");
     } else if (user && inAuthGroup) {
-      // Authenticated but still on auth screen → go to greeting
       router.replace("/");
     }
   }, [user, authLoading, fontsLoaded, segments]);

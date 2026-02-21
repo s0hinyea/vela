@@ -1,7 +1,7 @@
 /**
  * Screen — Sign Up
- * Email + password + 4-digit caregiver PIN.
- * After sign-up, navigates to onboarding to name the senior.
+ * Email + password + caregiver name + 4-digit PIN.
+ * Creates auth user then inserts into Person B's existing profiles table.
  */
 import React, { useState } from "react";
 import {
@@ -23,7 +23,7 @@ import { useAuth } from "../hooks/useAuth";
 
 export default function SignUpScreen() {
   const router = useRouter();
-  const { signUp, createProfile } = useAuth();
+  const { signUp } = useAuth();
 
   const [caregiverName, setCaregiverName] = useState("");
   const [email, setEmail] = useState("");
@@ -32,7 +32,6 @@ export default function SignUpScreen() {
   const [loading, setLoading] = useState(false);
 
   const handleSignUp = async () => {
-    // Validation
     if (!caregiverName.trim()) {
       Alert.alert("Required", "Please enter your name.");
       return;
@@ -52,33 +51,20 @@ export default function SignUpScreen() {
 
     setLoading(true);
     try {
-      // 1. Create Supabase auth user
-      const { error: signUpError, user } = await signUp(email.trim(), password);
-      if (signUpError) {
-        Alert.alert("Sign up failed", signUpError);
+      const { error } = await signUp(
+        email.trim(),
+        password,
+        caregiverName.trim(),
+        pin
+      );
+
+      if (error) {
+        Alert.alert("Sign up failed", error);
         return;
       }
 
-      // 2. Create profile with caregiver name + PIN
-      if (user) {
-        const { error: profileError } = await createProfile(
-          caregiverName.trim(),
-          pin
-        );
-        if (profileError) {
-          console.error("Profile creation error:", profileError);
-          // Profile creation may fail if email verification is required
-          // and the user isn't fully authenticated yet — that's OK,
-          // we'll create it in onboarding
-        }
-      }
-
-      // 3. Navigate to onboarding to name the senior
-      Alert.alert(
-        "Account created!",
-        "Please check your email to verify your account, then sign in.",
-        [{ text: "OK", onPress: () => router.replace("/signin") }]
-      );
+      // Sign-up successful → navigate to greeting
+      router.replace("/");
     } catch (e: any) {
       Alert.alert("Error", e.message || "Something went wrong.");
     } finally {
@@ -198,14 +184,8 @@ export default function SignUpScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: theme.colors.background,
-  },
-  scroll: {
-    padding: theme.spacing.lg,
-    paddingBottom: theme.spacing.xxl,
-  },
+  container: { flex: 1, backgroundColor: theme.colors.background },
+  scroll: { padding: theme.spacing.lg, paddingBottom: theme.spacing.xxl },
   backLink: { marginBottom: theme.spacing.md },
   backLinkText: {
     fontFamily: theme.fonts.medium,
@@ -225,10 +205,7 @@ const styles = StyleSheet.create({
     marginBottom: theme.spacing.lg,
     lineHeight: 22,
   },
-  form: {
-    gap: theme.spacing.md,
-    marginBottom: theme.spacing.lg,
-  },
+  form: { gap: theme.spacing.md, marginBottom: theme.spacing.lg },
   field: {},
   label: {
     fontFamily: theme.fonts.semiBold,
@@ -276,10 +253,7 @@ const styles = StyleSheet.create({
     transform: [{ scale: 0.97 }],
   },
   disabled: { opacity: 0.6 },
-  altLink: {
-    alignItems: "center",
-    marginTop: theme.spacing.md,
-  },
+  altLink: { alignItems: "center", marginTop: theme.spacing.md },
   altLinkText: {
     fontFamily: theme.fonts.regular,
     fontSize: theme.fontSizes.sm,

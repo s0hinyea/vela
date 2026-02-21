@@ -125,7 +125,6 @@ const styles = StyleSheet.create({
     textAlign: "center",
     marginTop: theme.spacing.sm,
   },
-  // Buttons
   buttons: {
     paddingHorizontal: theme.spacing.lg,
     paddingBottom: theme.spacing.xl,

@@ -44,7 +44,6 @@ export default function SignInScreen() {
         Alert.alert("Sign in failed", error);
         return;
       }
-      // Auth state change will trigger _layout.tsx to redirect to greeting
       router.replace("/");
     } catch (e: any) {
       Alert.alert("Error", e.message || "Something went wrong.");
@@ -131,15 +130,8 @@ export default function SignInScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: theme.colors.background,
-  },
-  content: {
-    flex: 1,
-    padding: theme.spacing.lg,
-    justifyContent: "center",
-  },
+  container: { flex: 1, backgroundColor: theme.colors.background },
+  content: { flex: 1, padding: theme.spacing.lg, justifyContent: "center" },
   backLink: { marginBottom: theme.spacing.md },
   backLinkText: {
     fontFamily: theme.fonts.medium,
@@ -158,10 +150,7 @@ const styles = StyleSheet.create({
     color: theme.colors.textSecondary,
     marginBottom: theme.spacing.lg,
   },
-  form: {
-    gap: theme.spacing.md,
-    marginBottom: theme.spacing.lg,
-  },
+  form: { gap: theme.spacing.md, marginBottom: theme.spacing.lg },
   field: {},
   label: {
     fontFamily: theme.fonts.semiBold,
@@ -197,10 +186,7 @@ const styles = StyleSheet.create({
     transform: [{ scale: 0.97 }],
   },
   disabled: { opacity: 0.6 },
-  altLink: {
-    alignItems: "center",
-    marginTop: theme.spacing.md,
-  },
+  altLink: { alignItems: "center", marginTop: theme.spacing.md },
   altLinkText: {
     fontFamily: theme.fonts.regular,
     fontSize: theme.fontSizes.sm,
