@@ -181,9 +181,9 @@ export default function NowScreen() {
       {/* Header */}
       <View style={styles.header}>
         <View style={styles.headerTitleRow}>
-          <View style={styles.headerLeft}>
+          <Pressable style={styles.headerLeft} onLongPress={forceDue} delayLongPress={300}>
             <Text style={styles.headerTitle}>Vela</Text>
-          </View>
+          </Pressable>
           <View style={styles.pillCounter}>
             <Text style={styles.pillCounterText}>{todaySlots.length} meds today</Text>
           </View>
