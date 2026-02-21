@@ -14,6 +14,8 @@ type VelaStore = {
   setMedications: (meds: Medication[]) => void;
   setSchedule: (slots: DoseSlot[], allTaken: boolean) => void;
   markTaken: (slotId: string) => void;
+  /** Debug: force the first upcoming slot to "due" */
+  forceDue: () => void;
   reset: () => void;
 };
 
@@ -49,6 +51,19 @@ export const useVelaStore = create<VelaStore>((set) => ({
         (s) => s.status === "taken" || s.status === "missed"
       );
       return { todaySlots: updated, currentSlot: nextDue, allTaken };
+    }),
+
+  forceDue: () =>
+    set((state) => {
+      const next = state.todaySlots.find((s) => s.status === "upcoming");
+      if (!next) return state;
+      const updated = state.todaySlots.map((s) =>
+        s.id === next.id ? { ...s, status: "due" as const } : s
+      );
+      return {
+        todaySlots: updated,
+        currentSlot: updated.find((s) => s.status === "due") ?? null,
+      };
     }),
 
   reset: () =>

@@ -22,7 +22,7 @@ import { useVoicePlayer } from "../hooks/useVoicePlayer";
 
 export default function NowScreen() {
   const router = useRouter();
-  const { currentSlot, todaySlots, allTaken, markTaken, profile } = useVelaStore();
+  const { currentSlot, todaySlots, allTaken, markTaken, profile, forceDue } = useVelaStore();
   const [logging, setLogging] = useState(false);
   const { play, stop, isPlaying } = useVoicePlayer();
 
@@ -51,9 +51,9 @@ export default function NowScreen() {
     return (
       <SafeAreaView style={styles.container}>
         <View style={styles.header}>
-          <View style={styles.headerLeft}>
+          <Pressable style={styles.headerLeft} onLongPress={forceDue} delayLongPress={300}>
             <Text style={styles.headerTitle}>Vela</Text>
-          </View>
+          </Pressable>
           {upcoming.length > 0 && (
             <View style={styles.pillCounter}>
               <Text style={styles.pillCounterText}>
