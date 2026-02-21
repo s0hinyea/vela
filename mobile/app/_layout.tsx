@@ -13,6 +13,7 @@ import {
 } from "@expo-google-fonts/inter";
 import { theme } from "../theme";
 import { useAuth } from "../hooks/useAuth";
+import { useNotifications } from "../hooks/useNotifications";
 import { DEMO_MODE } from "../mocks";
 
 export default function RootLayout() {
@@ -29,6 +30,7 @@ export default function RootLayout() {
   const [hasSeniorConfigured, setHasSeniorConfigured] = useState(false);
   const router = useRouter();
   const segments = useSegments();
+  const { scheduleAll } = useNotifications();
 
   // Check profile state when user changes
   useEffect(() => {
@@ -36,7 +38,7 @@ export default function RootLayout() {
       setProfileLoaded(true);
       return;
     }
-    
+
     // Check if senior_name exists
     import("../lib/supabase").then(({ supabase }) => {
       supabase.from("profiles")
@@ -56,6 +58,13 @@ export default function RootLayout() {
     return () => sub.remove();
   }, [user]);
 
+  // Schedule notifications when user is authenticated
+  useEffect(() => {
+    if (user && hasSeniorConfigured) {
+      scheduleAll(user.id);
+    }
+  }, [user, hasSeniorConfigured, scheduleAll]);
+
   // Route protection: redirect based on auth + profile state
   useEffect(() => {
     if (authLoading || !fontsLoaded || !profileLoaded) return;
@@ -67,7 +76,7 @@ export default function RootLayout() {
       segments[0] === "welcome" ||
       segments[0] === "signup" ||
       segments[0] === "signin";
-    
+
     const onOnboarding = segments[0] === "onboarding";
 
     if (!user && !inAuthGroup) {
@@ -77,7 +86,7 @@ export default function RootLayout() {
       // 2. Signed in, but hasn't named senior → Onboarding
       if (!hasSeniorConfigured && !onOnboarding) {
         router.replace("/onboarding");
-      } 
+      }
       // 3. Signed in, HAS named senior, but still on auth/onboarding screens → Home
       else if (hasSeniorConfigured && (inAuthGroup || onOnboarding)) {
         router.replace("/");

@@ -172,3 +172,82 @@ export async function logDose(payload: {
   const json = await res.json();
   if (!json.success) throw new Error(json.error);
 }
+
+// ─── Notification Schedule ────────────────────────────────────────────────────
+export async function fetchNotificationSchedule(profileId: string): Promise<{
+  profileId: string;
+  seniorName: string;
+  date: string;
+  totalNotifications: number;
+  notifications: Array<{
+    id: string;
+    scheduledTime: string;
+    scheduledTimeLabel: string;
+    stage: string;
+    triggerTime: string;
+    title: string;
+    body: string;
+    audioText: string;
+    medications: { id: string; name: string; dosage: string }[];
+    allTaken: boolean;
+    date: string;
+  }>;
+}> {
+  if (DEMO_MODE) {
+    // In demo mode, generate a mock notification in 10 seconds
+    return mockDelay({
+      profileId: MOCK_PROFILE.id,
+      seniorName: MOCK_PROFILE.seniorName,
+      date: new Date().toISOString().slice(0, 10),
+      totalNotifications: 3,
+      notifications: [
+        {
+          id: "notif-08:00-heads_up",
+          scheduledTime: "08:00",
+          scheduledTimeLabel: "8:00 AM",
+          stage: "heads_up",
+          triggerTime: "07:45",
+          title: "Coming up: 2 medications at 8:00 AM",
+          body: `${MOCK_PROFILE.seniorName}, your Metformin 500mg and Lisinopril 10mg are coming up soon.`,
+          audioText: `${MOCK_PROFILE.seniorName}, your Metformin 500mg and Lisinopril 10mg are coming up soon.`,
+          medications: MOCK_MEDICATIONS.slice(0, 2).map((m) => ({ id: m.id, name: m.name, dosage: m.dosage })),
+          allTaken: false,
+          date: new Date().toISOString().slice(0, 10),
+        },
+        {
+          id: "notif-08:00-action",
+          scheduledTime: "08:00",
+          scheduledTimeLabel: "8:00 AM",
+          stage: "action",
+          triggerTime: "08:00",
+          title: "Time for 2 medications",
+          body: `${MOCK_PROFILE.seniorName}, it's time for your Metformin 500mg and Lisinopril 10mg. Take with food.`,
+          audioText: `${MOCK_PROFILE.seniorName}, it's time for your Metformin 500mg and Lisinopril 10mg. Take with food.`,
+          medications: MOCK_MEDICATIONS.slice(0, 2).map((m) => ({ id: m.id, name: m.name, dosage: m.dosage })),
+          allTaken: false,
+          date: new Date().toISOString().slice(0, 10),
+        },
+        {
+          id: "notif-08:00-follow_up",
+          scheduledTime: "08:00",
+          scheduledTimeLabel: "8:00 AM",
+          stage: "follow_up",
+          triggerTime: "08:30",
+          title: "Did you take your 8:00 AM medications?",
+          body: `Just checking in — did you take your Metformin 500mg and Lisinopril 10mg?`,
+          audioText: `Just checking in, ${MOCK_PROFILE.seniorName}. Did you take your Metformin 500mg and Lisinopril 10mg?`,
+          medications: MOCK_MEDICATIONS.slice(0, 2).map((m) => ({ id: m.id, name: m.name, dosage: m.dosage })),
+          allTaken: false,
+          date: new Date().toISOString().slice(0, 10),
+        },
+      ],
+    });
+  }
+  const res = await fetch(
+    `${BASE_URL}/api/notifications/schedule?profileId=${profileId}`
+  );
+  const json = await res.json();
+  if (!json.success) throw new Error(json.error);
+  return json.data;
+}
+

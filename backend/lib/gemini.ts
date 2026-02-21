@@ -1,6 +1,17 @@
 import { GoogleGenAI } from "@google/genai";
 
-const gemini = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY! });
+let _gemini: GoogleGenAI | null = null;
+
+function getGemini(): GoogleGenAI {
+    if (!_gemini) {
+        const apiKey = process.env.GEMINI_API_KEY;
+        if (!apiKey) {
+            throw new Error("Missing GEMINI_API_KEY in environment variables.");
+        }
+        _gemini = new GoogleGenAI({ apiKey });
+    }
+    return _gemini;
+}
 
 const MODEL = "gemini-2.5-flash";
 
@@ -32,7 +43,7 @@ Rules:
 - Return ONLY the JSON object, no markdown fences, no explanation`;
 
 export async function extractLabelFromImage(imageBase64: string) {
-    const response = await gemini.models.generateContent({
+    const response = await getGemini().models.generateContent({
         model: MODEL,
         contents: [
             {
@@ -100,7 +111,7 @@ export async function checkInteractions(
         .replace("{existing}", existingMedications.join(", ") || "none")
         .replace("{new}", newMedication);
 
-    const response = await gemini.models.generateContent({
+    const response = await getGemini().models.generateContent({
         model: MODEL,
         contents: [{ role: "user", parts: [{ text: prompt }] }],
     });

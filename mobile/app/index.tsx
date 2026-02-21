@@ -19,6 +19,7 @@ import { useVelaStore } from "../store/useVelaStore";
 import { fetchProfile, fetchTodaySchedule } from "../api";
 import { MOCK_PROFILE, DEMO_MODE } from "../mocks";
 import { useAuth } from "../hooks/useAuth";
+import { useNotifications } from "../hooks/useNotifications";
 import { supabase } from "../lib/supabase";
 
 function getTimeOfDay(): string {
@@ -32,6 +33,7 @@ export default function GreetingScreen() {
   const router = useRouter();
   const { profile, setProfile, setSchedule } = useVelaStore();
   const { user, signOut } = useAuth();
+  const { simulateNextReminder } = useNotifications();
   const [loading, setLoading] = useState(true);
 
   // Staggered fade-in animations
@@ -155,6 +157,21 @@ export default function GreetingScreen() {
             <Text style={styles.buttonText}>See today's medications</Text>
             <Text style={styles.buttonArrow}>→</Text>
           </Pressable>
+
+          {/* Demo: Simulate Reminder button */}
+          <Pressable
+            style={({ pressed }) => [
+              styles.simulateButton,
+              pressed && styles.simulateButtonPressed,
+            ]}
+            onPress={() => {
+              const id = DEMO_MODE ? MOCK_PROFILE.id : user?.id;
+              if (id) simulateNextReminder(id);
+            }}
+            accessibilityLabel="Simulate a reminder notification"
+          >
+            <Text style={styles.simulateText}>🔔 Simulate reminder</Text>
+          </Pressable>
         </Animated.View>
       </View>
     </SafeAreaView>
@@ -268,5 +285,18 @@ const styles = StyleSheet.create({
     fontFamily: theme.fonts.bold,
     color: theme.colors.textOnPrimary,
     fontSize: theme.fontSizes.lg,
+  },
+  simulateButton: {
+    marginTop: theme.spacing.md,
+    paddingVertical: theme.spacing.xs,
+    alignItems: "center",
+  },
+  simulateButtonPressed: {
+    opacity: 0.5,
+  },
+  simulateText: {
+    fontFamily: theme.fonts.medium,
+    fontSize: theme.fontSizes.sm,
+    color: theme.colors.textSecondary,
   },
 });
