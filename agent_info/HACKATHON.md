@@ -1,0 +1,64 @@
+Vela — Complete Project Summary
+
+What Is Vela?
+Vela is a mobile app designed to make daily medication management effortless for seniors. The name comes from the Spanish word for candle — a warm, guiding light. Just like a candle, Vela guides seniors through their day one medication at a time, removing confusion, anxiety, and the very real danger of missed or doubled doses.
+The one-sentence pitch: "Photograph your pill bottle, and Vela turns it into a warm daily companion that tells you exactly what to take, when, and how — in a voice that feels like a friend."
+Vela is not a pill tracker. It's not a medical database. It's a calm, dignified daily companion built specifically for how seniors actually experience time and technology — one moment at a time, with large text, warm colors, and a voice that knows their name.
+
+The Problem It Solves
+Seniors managing multiple medications face a surprisingly dangerous daily challenge. Pill bottle labels are small, dense, and written in clinical language. Dosing schedules are easy to forget or confuse. Missing a dose or accidentally doubling one can have serious health consequences. Existing apps are either too complex, too clinical, or designed for caregivers rather than the seniors themselves.
+Vela solves this by removing every unnecessary decision. The senior never reads a label, never parses a schedule, and never has to remember what comes next. Vela tells them.
+
+Who Uses It
+The setup user is the caregiver — a daughter, son, nurse, or family friend. They open Vela, photograph each pill bottle label, confirm the extracted information, and hand the phone to the senior. Setup takes about 2 minutes per medication.
+The daily user is the senior. From that point on, they interact with one screen that tells them exactly what's happening right now. They tap one button when they've taken their medication. That's the entire interaction.
+
+What It Looks Like
+Vela's visual language is deliberately warm and non-clinical. Every other health app defaults to cold blue and white — Vela uses soft cream backgrounds, deep forest green text, warm amber accents, and rounded everything. Nothing smaller than 22px. Every screen has one dominant element and one primary action.
+The experience feels like a warm letter, not a medical form.
+
+The Five Screens
+Screen 1 — The Greeting
+When the senior opens the app, they see a full-screen warm greeting. Just their name and the time of day. One button at the bottom: "See today's medications." No menus, no login, no decisions. The ElevenLabs voice greets them by name automatically.
+Screen 2 — The Now Card
+This is the heart of Vela. A single large card fills the entire screen showing only the current medication — its name in large text, the dosage, a simple instruction like "take with breakfast," and one large button: "I took it." Below that, a smaller "Hear reminder" button triggers ElevenLabs to read the card aloud in a warm, calm voice. There is no schedule list. There is no navigation. Just this card, right now.
+Screen 3 — The Scan Screen
+When the caregiver is setting up a new medication, the camera opens with a warm overlay and a simple instruction to slowly pan over the label. A golden progress bar fills as the scan completes. The label edges glow amber when detected. A gentle chime plays on capture. This is the demo's wow moment.
+If the scan fails or the label is too damaged to read, the caregiver can tap "Type it instead" to manually enter the medication name, dosage, and frequency. This isn't a compromise — it's a design decision. The demo should never break on stage, and in reality, some pill bottles have worn or smudged labels. The manual fallback ensures Vela always works.
+Screen 4 — The Confirm Screen
+After scanning, Gemini's extracted data appears as a conversational confirmation — not a form. "We found Metformin, 500mg, once daily with food. Does this look right?" Two buttons: "Yes, looks good" and "Fix something." This is the demo safety net — if Gemini gets something wrong, the user corrects it here before it ever reaches the schedule.
+If the senior already has medications saved, the confirm screen also shows an Interaction Check panel. Gemini cross-references the new medication against every existing one and flags potential conflicts. For example, if the caregiver scans a new potassium supplement and the senior already takes Lisinopril, Vela warns: "Heads up — potassium supplements taken with Lisinopril can raise potassium to dangerous levels. We recommend asking your doctor before adding this." The caregiver sees this before confirming, and can choose to save it anyway or remove it. This is the moment that transforms Vela from a smart label reader into something that actively protects the senior. This is what wins AI/ML Immersion.
+Screen 5 — The End of Day Screen
+When all medications for the day are marked taken, a warm golden full-screen card appears: "All done for today, Martha. Great job." ElevenLabs plays a gentle goodnight message. This moment — dignified, affirming, human — is what wins Best Health & Accessibility.
+
+The Notification Flow
+Vela uses a three-tap notification cadence per medication dose, delivered as push notifications through Expo's notification system:
+30 minutes before — a gentle heads-up: "Martha, your evening Atorvastatin is coming up after dinner."
+At the exact time — the action reminder: "Time to take your Atorvastatin 20mg. Tap here."
+15 minutes after if not marked taken — a compassionate follow-up: "Just checking in — did you take your Atorvastatin?"
+Push notifications appear on the lock screen in large system text. When the senior taps the notification, the app opens directly to that medication's Now Card and the ElevenLabs voice plays automatically. No buttons to find. No navigation to figure out.
+
+The Tools and What Each One Does
+Expo (React Native)
+Expo is the mobile development framework that lets you build iOS and Android apps from a single codebase. For a hackathon it's the right call because it has the fastest development loop, works on both platforms instantly, and demos beautifully via a QR code that judges can scan without any app store approval. Expo also provides the camera library for scanning and the notifications library for push notifications — both built in, no extra configuration needed.
+Gemini Vision API (Google)
+Gemini does two things in Vela. First, it reads the pill bottle label. When the caregiver scans a label, the image is sent to Gemini Vision which analyzes it and returns structured data — medication name, dosage, frequency, and timing hints. Gemini returns a JSON object that flows into the confirm screen, so the caregiver can verify and correct before anything is saved.
+Second — and this is what elevates the AI story from "reads labels" to "reasons about your health" — Gemini performs an interaction check every time a new medication is added. It receives the full list of the senior's current medications and the newly scanned one, then reasons about drug-drug interactions, timing conflicts, food conflicts, and duplicate therapies. It returns a structured JSON response with severity levels (MAJOR, MODERATE, MINOR), plain-language explanations, and scheduling recommendations. This is a real multi-step reasoning pipeline: vision extraction, then pharmacological cross-referencing, then constraint-aware schedule generation. This is what you claim for the "Best Use of Gemini API" and "Best AI/ML Immersion" judging categories.
+ElevenLabs
+ElevenLabs provides the voice. Every reminder, greeting, and goodnight message is spoken aloud by a warm, calm, human-sounding voice generated by ElevenLabs' text-to-speech API. The voice knows the senior's name and speaks in plain English, not medical jargon. This is what transforms Vela from an app into a companion. This is what you claim for the "Best Use of ElevenLabs" judging category.
+Critically, all ElevenLabs audio is pre-generated and cached during setup — not generated on demand. When the caregiver confirms a medication, the backend immediately generates every voice clip needed for that medication's reminders (the heads-up, the action reminder, the follow-up, and any interaction warnings) and stores them. When the senior hears a reminder, playback is instant — no loading spinner, no API latency, no silence while waiting for generation. The voice simply speaks, immediately, every time. This is essential for the demo: any delay between tapping "Hear reminder" and hearing the voice would shatter the illusion of a companion.
+Supabase
+Supabase is the database and backend infrastructure. It stores the medication data extracted by Gemini, the daily schedule, and the log of taken doses. It uses PostgreSQL under the hood with a simple API that makes reading and writing data from the mobile app straightforward. For the MVP you're using it without authentication — a simple anonymous user model so setup is instant.
+Next.js API Routes on Vercel
+The backend lives in Next.js API routes deployed on Vercel. There are three routes: one that receives the label image and calls Gemini, one that generates voice audio via ElevenLabs, and one that saves medication data to Supabase. Vercel deploys these instantly with no server configuration, which gives the project a production feel without the overhead.
+
+The Full Flow Start to Finish
+The caregiver opens Vela and taps "Add Medication." The camera opens in scan mode. They slowly pan across the pill bottle label (or tap "Type it instead" if the label is damaged). The app captures and flattens the image. It's sent to the Gemini Vision API via the Next.js backend. Gemini returns structured JSON with the medication details. If the senior already has medications saved, Gemini immediately performs a second reasoning call — cross-referencing the new medication against every existing one for interactions, timing conflicts, and duplicate therapies. The confirm screen shows the extracted data conversationally, along with any interaction warnings. The caregiver reviews, confirms or corrects, and the data is saved to Supabase. The backend then pre-generates all ElevenLabs audio clips for this medication's reminders and caches them for instant playback. The app schedules three push notifications per dose using Expo's notification system. From that point on, the senior's experience is entirely automatic — notifications arrive, they tap, the Now Card appears, the voice plays instantly from cache, they tap "I took it," and Vela moves to the next medication or the end of day screen.
+
+Demo Strategy
+The live demo should use a pre-loaded demo mode with three medications already scanned and scheduled — Metformin, Lisinopril, and Atorvastatin. This guarantees a smooth, reliable demo regardless of network conditions or API hiccups. The demo flow is: open the app to the Greeting Screen ("Good evening, Martha"), tap through to the Now Card, tap "Hear reminder" to play the cached ElevenLabs voice, then show a live scan of one new pill bottle to demonstrate the scan-to-confirm flow. When the new medication is confirmed, the Interaction Check panel appears and flags a conflict — this is the AI wow moment. If time permits, trigger a simulated notification to show the full notification-to-Now Card flow. For notifications, include a hidden "Simulate Next Reminder" button in a debug menu that triggers the notification cadence immediately — you can't wait 30 minutes on stage. End the demo on the End of Day Screen: "All done for today, Martha. Great job." Let the ElevenLabs goodnight voice play. Let the room sit in silence for two seconds. That silence is where judges decide you've won.
+
+What Makes This Win
+Most hackathon health apps are utility tools with a health coat of paint. Vela is different because every single design decision — the warm colors, the single card, the voice, the goodnight message — was made by asking "does this make a senior's life more dignified?" That intentionality shows in the demo, in the pitch, and in the judging criteria it directly targets: Health & Accessibility, UI/UX, AI/ML Immersion, Gemini API, and ElevenLabs. Every feature earns its place.
+The AI story is not "Gemini reads a label." The AI story is: "Gemini reads a label, then reasons about whether this new medication is safe alongside everything the senior already takes, then generates a conflict-free schedule, all before the caregiver even finishes confirming." That's a multi-step reasoning pipeline — vision, retrieval, pharmacological analysis, constraint satisfaction — and it's what separates Vela from a reminder app with OCR.
+The final moment of the demo — the goodnight screen with warm golden light and a gentle voice saying "Great job, Martha" — is what judges will remember during deliberation. It's not a feature. It's a feeling. That's what wins.

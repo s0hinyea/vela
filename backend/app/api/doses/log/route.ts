@@ -1,0 +1,105 @@
+import { NextRequest, NextResponse } from "next/server";
+import { getSupabase } from "@/lib/supabase";
+
+// POST /api/doses/log — Mark a dose as taken
+export async function POST(request: NextRequest) {
+    try {
+        const body = await request.json();
+        const { doseSlotId, profileId, medicationId, takenAt } = body;
+
+        if (!profileId || !medicationId || !takenAt) {
+            return NextResponse.json(
+                {
+                    success: false,
+                    error: "profileId, medicationId, and takenAt are required.",
+                },
+                { status: 400 }
+            );
+        }
+
+        const supabase = getSupabase();
+        const today = new Date().toISOString().split("T")[0];
+
+        // Extract scheduled_time from the doseSlotId if it follows our pattern,
+        // otherwise try to find it from the medication
+        let scheduledTime = "00:00";
+        if (doseSlotId && doseSlotId.startsWith("slot-")) {
+            // Pattern: slot-{medId}-{HH:MM}
+            const parts = doseSlotId.split("-");
+            scheduledTime = parts[parts.length - 1];
+        }
+
+        // Upsert: if a log already exists for this med + time + date, update it
+        const { data, error } = await supabase
+            .from("dose_logs")
+            .upsert(
+                {
+                    profile_id: profileId,
+                    medication_id: medicationId,
+                    scheduled_time: scheduledTime,
+                    taken_at: takenAt,
+                    date: today,
+                    status: "taken",
+                },
+                {
+                    onConflict: "profile_id,medication_id,scheduled_time,date",
+                    ignoreDuplicates: false,
+                }
+            )
+            .select()
+            .single();
+
+        // If upsert with conflict fails (no unique constraint), fall back to insert
+        if (error) {
+            const { data: insertData, error: insertError } = await supabase
+                .from("dose_logs")
+                .insert({
+                    profile_id: profileId,
+                    medication_id: medicationId,
+                    scheduled_time: scheduledTime,
+                    taken_at: takenAt,
+                    date: today,
+                    status: "taken",
+                })
+                .select()
+                .single();
+
+            if (insertError) {
+                return NextResponse.json(
+                    { success: false, error: insertError.message },
+                    { status: 500 }
+                );
+            }
+
+            return NextResponse.json({
+                success: true,
+                data: {
+                    id: insertData.id,
+                    doseSlotId: doseSlotId ?? `slot-${medicationId}-${scheduledTime}`,
+                    medicationId: insertData.medication_id,
+                    profileId: insertData.profile_id,
+                    takenAt: insertData.taken_at,
+                    date: insertData.date,
+                },
+            });
+        }
+
+        return NextResponse.json({
+            success: true,
+            data: {
+                id: data.id,
+                doseSlotId: doseSlotId ?? `slot-${medicationId}-${scheduledTime}`,
+                medicationId: data.medication_id,
+                profileId: data.profile_id,
+                takenAt: data.taken_at,
+                date: data.date,
+            },
+        });
+    } catch (err) {
+        console.error("Dose log error:", err);
+        return NextResponse.json(
+            { success: false, error: "Invalid request body." },
+            { status: 400 }
+        );
+    }
+}
