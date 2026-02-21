@@ -63,8 +63,8 @@ export default function SignUpScreen() {
         return;
       }
 
-      // Sign-up successful → navigate to greeting
-      router.replace("/");
+      // Sign-up successful → navigate to onboarding to name the senior
+      router.replace("/onboarding");
     } catch (e: any) {
       Alert.alert("Error", e.message || "Something went wrong.");
     } finally {
