@@ -13,6 +13,7 @@ import {
   ActivityIndicator,
   Alert,
   Animated,
+  TextInput,
 } from "react-native";
 import { useRouter, useLocalSearchParams } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -36,9 +37,18 @@ export default function ConfirmScreen() {
 
   const [warnings, setWarnings] = useState<InteractionWarning[]>([]);
   const [scheduleNotes, setScheduleNotes] = useState<string | null>(null);
-  const [safe, setSafe] = useState(true);
   const [checkingInteractions, setCheckingInteractions] = useState(false);
   const [saving, setSaving] = useState(false);
+
+  // Editable fields
+  const [editableInstructions, setEditableInstructions] = useState(scanned?.instructions || "");
+  const [editableTimes, setEditableTimes] = useState<string[]>(scanned?.suggestedTimes || []);
+
+  const updateTime = (index: number, val: string) => {
+    const newTimes = [...editableTimes];
+    newTimes[index] = val;
+    setEditableTimes(newTimes);
+  };
 
   // Animations
   const fadeIn = useRef(new Animated.Value(0)).current;
@@ -62,7 +72,6 @@ export default function ConfirmScreen() {
       .then((result) => {
         setWarnings(result.warnings);
         setScheduleNotes(result.scheduleNotes);
-        setSafe(result.safe);
         // Animate warnings in
         Animated.timing(warningFade, {
           toValue: 1,
@@ -80,9 +89,9 @@ export default function ConfirmScreen() {
     try {
       await saveMedication({
         profileId: profile.id,
-        scanned,
+        scanned: { ...scanned, instructions: editableInstructions },
         interactions: warnings,
-        finalTimes: scanned.suggestedTimes,
+        finalTimes: editableTimes.filter(t => t.trim().length > 0), // Filter out empties
       });
       router.replace("/now");
     } catch {
@@ -169,9 +178,32 @@ export default function ConfirmScreen() {
             </View>
             <View style={styles.detailItem}>
               <Text style={styles.detailIcon}>📋</Text>
-              <View>
-                <Text style={styles.detailLabel}>Instructions</Text>
-                <Text style={styles.detailValue}>{scanned.instructions}</Text>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.detailLabel}>Instructions (Tap to edit)</Text>
+                <TextInput
+                  style={styles.inlineInput}
+                  value={editableInstructions}
+                  onChangeText={setEditableInstructions}
+                  multiline
+                />
+              </View>
+            </View>
+            
+            <View style={styles.detailItem}>
+              <Text style={styles.detailIcon}>⏰</Text>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.detailLabel}>Scheduled Times (Tap to edit)</Text>
+                {editableTimes.map((t, i) => (
+                  <View key={i} style={styles.timeInputRow}>
+                    <TextInput
+                      style={styles.timeInput}
+                      value={t}
+                      onChangeText={(val) => updateTime(i, val)}
+                      placeholder="HH:MM"
+                      keyboardType="numbers-and-punctuation"
+                    />
+                  </View>
+                ))}
               </View>
             </View>
             {scanned.color && (
@@ -385,6 +417,36 @@ const styles = StyleSheet.create({
     fontFamily: theme.fonts.semiBold,
     fontSize: theme.fontSizes.sm,
     color: theme.colors.textPrimary,
+  },
+  inlineInput: {
+    fontFamily: theme.fonts.medium,
+    fontSize: theme.fontSizes.md,
+    color: theme.colors.textPrimary,
+    backgroundColor: theme.colors.surface,
+    padding: theme.spacing.sm,
+    borderRadius: theme.radii.sm,
+    borderWidth: 1,
+    borderColor: theme.colors.border,
+    marginTop: theme.spacing.xs,
+  },
+  timeInputRow: {
+    flexDirection: "row",
+    gap: theme.spacing.sm,
+    marginTop: theme.spacing.xs,
+    flexWrap: "wrap",
+  },
+  timeInput: {
+    fontFamily: theme.fonts.semiBold,
+    fontSize: theme.fontSizes.sm,
+    color: theme.colors.textPrimary,
+    backgroundColor: theme.colors.surface,
+    paddingVertical: theme.spacing.sm,
+    paddingHorizontal: theme.spacing.md,
+    borderRadius: theme.radii.full,
+    borderWidth: 1,
+    borderColor: theme.colors.border,
+    width: 90,
+    textAlign: "center",
   },
   // Interaction checking
   checkingCard: {

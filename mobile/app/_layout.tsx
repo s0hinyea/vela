@@ -58,7 +58,8 @@ export default function RootLayout() {
 
   // Route protection: redirect based on auth + profile state
   useEffect(() => {
-    if (authLoading || !fontsLoaded || !profileLoaded) return;
+    // Wait until everything is fully loaded AND segments are available
+    if (authLoading || !fontsLoaded || !profileLoaded || !segments.length) return;
 
     // Demo mode skips auth + onboarding entirely
     if (DEMO_MODE) return;
@@ -68,6 +69,7 @@ export default function RootLayout() {
       segments[0] === "signup" ||
       segments[0] === "signin";
     
+    // We only want to protect the top-level route if it's explicitly onboarding
     const onOnboarding = segments[0] === "onboarding";
 
     if (!user && !inAuthGroup) {
