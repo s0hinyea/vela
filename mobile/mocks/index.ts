@@ -9,7 +9,7 @@ import type {
 // ─── Demo flag ───────────────────────────────────────────────────────────────
 // When true, api.ts returns mock data instead of hitting the backend.
 // Flip to false at integration hour.
-export const DEMO_MODE = true;
+export const DEMO_MODE = false;
 
 // Helper — fake network delay
 export function mockDelay<T>(data: T, ms = 1200): Promise<T> {

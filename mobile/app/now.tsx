@@ -19,10 +19,12 @@ import { theme } from "../theme";
 import { useVelaStore } from "../store/useVelaStore";
 import { logDose } from "../api";
 import { useVoicePlayer } from "../hooks/useVoicePlayer";
+import { useAuth } from "../hooks/useAuth";
 
 export default function NowScreen() {
   const router = useRouter();
   const { currentSlot, todaySlots, allTaken, markTaken, profile, forceDue } = useVelaStore();
+  const { signOut } = useAuth();
   const [logging, setLogging] = useState(false);
   const { play, stop, isPlaying } = useVoicePlayer();
 
@@ -51,16 +53,21 @@ export default function NowScreen() {
     return (
       <SafeAreaView style={styles.container}>
         <View style={styles.header}>
-          <Pressable style={styles.headerLeft} onLongPress={forceDue} delayLongPress={300}>
-            <Text style={styles.headerTitle}>Vela</Text>
+          <View style={styles.headerTitleRow}>
+            <Pressable style={styles.headerLeft} onLongPress={forceDue} delayLongPress={300}>
+              <Text style={styles.headerTitle}>Vela</Text>
+            </Pressable>
+            {upcoming.length > 0 && (
+              <View style={styles.pillCounter}>
+                <Text style={styles.pillCounterText}>
+                  {upcoming.length} upcoming
+                </Text>
+              </View>
+            )}
+          </View>
+          <Pressable onPress={signOut} style={styles.signOutButton}>
+            <Text style={styles.signOutText}>Sign out</Text>
           </Pressable>
-          {upcoming.length > 0 && (
-            <View style={styles.pillCounter}>
-              <Text style={styles.pillCounterText}>
-                {upcoming.length} upcoming
-              </Text>
-            </View>
-          )}
         </View>
 
         <ScrollView
@@ -173,14 +180,17 @@ export default function NowScreen() {
     <SafeAreaView style={styles.container}>
       {/* Header */}
       <View style={styles.header}>
-        <View style={styles.headerLeft}>
-          <Text style={styles.headerTitle}>Vela</Text>
+        <View style={styles.headerTitleRow}>
+          <Pressable style={styles.headerLeft} onLongPress={forceDue} delayLongPress={300}>
+            <Text style={styles.headerTitle}>Vela</Text>
+          </Pressable>
+          <View style={styles.pillCounter}>
+            <Text style={styles.pillCounterText}>{todaySlots.length} meds today</Text>
+          </View>
         </View>
-        <View style={styles.pillCounter}>
-          <Text style={styles.pillCounterText}>
-            {remaining} remaining today
-          </Text>
-        </View>
+        <Pressable onPress={signOut} style={styles.signOutButton}>
+          <Text style={styles.signOutText}>Sign out</Text>
+        </Pressable>
       </View>
 
       <ScrollView
@@ -322,6 +332,10 @@ const styles = StyleSheet.create({
     paddingTop: theme.spacing.sm,
     paddingBottom: theme.spacing.xs,
   },
+  headerTitleRow: {
+    flexDirection: "row",
+    alignItems: "center",
+  },
   headerLeft: {
     flexDirection: "row",
     alignItems: "center",
@@ -340,9 +354,23 @@ const styles = StyleSheet.create({
     borderRadius: theme.radii.full,
   },
   pillCounterText: {
-    fontFamily: theme.fonts.medium,
+    fontFamily: theme.fonts.semiBold,
     fontSize: theme.fontSizes.xs,
     color: theme.colors.accent,
+  },
+  signOutButton: {
+    paddingVertical: 8,
+    paddingHorizontal: 4,
+  },
+  signOutText: {
+    fontFamily: theme.fonts.medium,
+    fontSize: theme.fontSizes.sm,
+    color: theme.colors.textSecondary,
+  },
+  cardWrapper: {
+    flex: 1,
+    paddingHorizontal: 32,
+    backgroundColor: theme.colors.surface,
   },
   // Caught up state
   caughtUpHeader: {

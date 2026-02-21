@@ -17,7 +17,9 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { theme } from "../theme";
 import { useVelaStore } from "../store/useVelaStore";
 import { fetchProfile, fetchTodaySchedule } from "../api";
-import { MOCK_PROFILE } from "../mocks";
+import { MOCK_PROFILE, DEMO_MODE } from "../mocks";
+import { useAuth } from "../hooks/useAuth";
+import { supabase } from "../lib/supabase";
 
 function getTimeOfDay(): string {
   const hour = new Date().getHours();
@@ -29,6 +31,7 @@ function getTimeOfDay(): string {
 export default function GreetingScreen() {
   const router = useRouter();
   const { profile, setProfile, setSchedule } = useVelaStore();
+  const { user, signOut } = useAuth();
   const [loading, setLoading] = useState(true);
 
   // Staggered fade-in animations
@@ -41,10 +44,30 @@ export default function GreetingScreen() {
   useEffect(() => {
     async function load() {
       try {
-        const p = await fetchProfile(MOCK_PROFILE.id);
-        setProfile(p);
-        const schedule = await fetchTodaySchedule(p.id);
-        setSchedule(schedule.slots, schedule.allTaken);
+        if (DEMO_MODE) {
+          // Demo mode — use mock data
+          const p = await fetchProfile(MOCK_PROFILE.id);
+          setProfile(p);
+          const schedule = await fetchTodaySchedule(p.id);
+          setSchedule(schedule.slots, schedule.allTaken);
+        } else if (user) {
+          // Authenticated — load from Supabase
+          const { data, error } = await supabase
+            .from("profiles")
+            .select("*")
+            .eq("id", user.id)
+            .single();
+
+          if (data && !error) {
+            setProfile({
+              id: data.id,
+              seniorName: data.senior_name || "Friend",
+              caregiverName: data.caregiver_name || "Caregiver",
+              createdAt: data.created_at,
+            });
+          }
+          // TODO: load schedule from Supabase when backend integrates
+        }
       } catch (e) {
         console.error("Failed to load profile", e);
       } finally {
@@ -52,7 +75,7 @@ export default function GreetingScreen() {
       }
     }
     load();
-  }, []);
+  }, [user]);
 
   useEffect(() => {
     if (!loading) {
@@ -85,14 +108,19 @@ export default function GreetingScreen() {
   return (
     <SafeAreaView style={styles.container}>
       <View style={styles.content}>
-        {/* Top — Vela branding (triple-tap = skip to Done screen) */}
-        <Pressable
-          style={styles.brandRow}
-          onLongPress={() => router.push("/done")}
-          delayLongPress={300}
-        >
-          <Text style={styles.brandName}>Vela</Text>
-        </Pressable>
+        {/* Top — Vela branding and Sign Out */}
+        <View style={styles.header}>
+          <Pressable
+            style={styles.brandRow}
+            onLongPress={() => router.push("/done")}
+            delayLongPress={300}
+          >
+            <Text style={styles.brandName}>Vela</Text>
+          </Pressable>
+          <Pressable onPress={signOut} style={styles.signOutButton}>
+            <Text style={styles.signOutText}>Sign out</Text>
+          </Pressable>
+        </View>
 
         {/* Center — greeting */}
         <View style={styles.greetingBlock}>
@@ -156,7 +184,12 @@ const styles = StyleSheet.create({
     paddingTop: theme.spacing.lg,
     paddingBottom: theme.spacing.xl,
   },
-  // Branding
+  // Header
+  header: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+  },
   brandRow: {
     flexDirection: "row",
     alignItems: "center",
@@ -167,6 +200,15 @@ const styles = StyleSheet.create({
     color: theme.colors.accent,
     letterSpacing: 1.5,
     textTransform: "uppercase",
+  },
+  signOutButton: {
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+  },
+  signOutText: {
+    fontFamily: theme.fonts.medium,
+    fontSize: theme.fontSizes.sm,
+    color: theme.colors.textSecondary,
   },
   // Greeting
   greetingBlock: {
