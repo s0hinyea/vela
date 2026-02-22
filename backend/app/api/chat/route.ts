@@ -2,12 +2,50 @@ import { NextRequest, NextResponse } from "next/server";
 import { getSupabase } from "@/lib/supabase";
 import { askChatbot } from "@/lib/gemini";
 
+export const dynamic = "force-dynamic";
+
+export async function GET() {
+    return NextResponse.json(
+        { success: false, error: "Method not allowed. Use POST /api/chat." },
+        { status: 405 }
+    );
+}
+
+export async function OPTIONS() {
+    return new NextResponse(null, {
+        status: 204,
+        headers: {
+            Allow: "POST, OPTIONS",
+        },
+    });
+}
+
 export async function POST(request: NextRequest) {
+    const startedAt = Date.now();
+    const requestId =
+        request.headers.get("x-chat-request-id") ||
+        `chat-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
+    const log = (message: string, extra?: Record<string, unknown>) => {
+        if (extra) {
+            console.log(`[chat:${requestId}] ${message}`, extra);
+        } else {
+            console.log(`[chat:${requestId}] ${message}`);
+        }
+    };
+
     try {
         const body = await request.json();
         const { profileId, medicationId, question } = body;
+        const questionText = typeof question === "string" ? question.trim() : "";
+        log("request received", {
+            profileId,
+            medicationId,
+            questionLength: questionText.length,
+            questionPreview: questionText.slice(0, 100),
+        });
 
-        if (!profileId || !medicationId || !question) {
+        if (!profileId || !medicationId || !questionText) {
+            log("bad request: missing required fields");
             return NextResponse.json(
                 { success: false, error: "Missing required fields: profileId, medicationId, question." },
                 { status: 400 }
@@ -29,18 +67,15 @@ export async function POST(request: NextRequest) {
             .lte("created_at", endOfDay);
 
         if (countError) {
-            console.error("[chat] rate-limit query failed:", countError);
-            return NextResponse.json(
-                {
-                    success: false,
-                    error: "Failed to verify query limit.",
-                    details: countError.message,
-                },
-                { status: 500 }
-            );
+            console.error(`[chat:${requestId}] rate-limit query failed:`, countError);
+        } else {
+            log("rate-limit query ok", { dailyCount: count ?? 0 });
         }
 
-        if (count !== null && count >= 3) {
+        const dailyCount = countError ? null : count ?? 0;
+
+        if (dailyCount !== null && dailyCount >= 3) {
+            log("rate limit reached", { dailyCount });
             return NextResponse.json(
                 { 
                     success: false, 
@@ -59,21 +94,34 @@ export async function POST(request: NextRequest) {
             .single();
 
         if (medError || !med) {
+            console.error(`[chat:${requestId}] medication lookup failed:`, medError);
             return NextResponse.json(
                 { success: false, error: "Medication context not found." },
                 { status: 404 }
             );
         }
+        log("medication loaded", {
+            medName: med.name,
+            hasWarnings: Array.isArray(med.interactions) && med.interactions.length > 0,
+        });
 
         // 3. Call Gemini Chatbot
         const medInfo = {
             name: med.name,
             dosage: med.dosage,
+            form: med.form,
+            frequency: med.frequency,
+            scheduledTimes: med.scheduled_times,
             instructions: med.instructions,
             warnings: med.interactions?.map((i: any) => i.explanation) ?? [],
         };
 
-        const answer = await askChatbot(medInfo, question);
+        const llmStart = Date.now();
+        const answer = await askChatbot(medInfo, questionText);
+        log("gemini response received", {
+            answerLength: answer.length,
+            llmElapsedMs: Date.now() - llmStart,
+        });
 
         // 4. Log the interaction
         const { error: logError } = await supabase
@@ -81,30 +129,36 @@ export async function POST(request: NextRequest) {
             .insert({
                 profile_id: profileId,
                 medication_id: medicationId,
-                question: question,
+                question: questionText,
                 answer: answer
             });
 
         if (logError) {
-            console.error("Failed to log chat interaction:", logError);
+            console.error(`[chat:${requestId}] failed to log chat interaction:`, logError);
             // We still return the answer to the user even if logging fails
+        } else {
+            log("chat logged");
         }
 
+        log("request complete", { elapsedMs: Date.now() - startedAt });
         return NextResponse.json({
             success: true,
             data: {
                 answer,
-                remaining: 3 - (count ?? 0) - 1
+                // If rate-limit lookup failed, keep chat available and avoid blocking the experience.
+                remaining: dailyCount === null ? 3 : Math.max(0, 3 - dailyCount - 1),
+                requestId,
             }
         });
 
     } catch (err) {
-        console.error("Chat API error:", err);
+        console.error(`[chat:${requestId}] API error after ${Date.now() - startedAt}ms:`, err);
         return NextResponse.json(
             {
                 success: false,
                 error: "Internal server error.",
                 details: err instanceof Error ? err.message : String(err),
+                requestId,
             },
             { status: 500 }
         );

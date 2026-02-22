@@ -260,31 +260,48 @@ export async function translateNotificationTexts(
 // 5. Chatbot Reasoning — answers questions about a specific medication
 // ---------------------------------------------------------------------------
 
-const CHAT_SYSTEM_PROMPT = `You are Vela, the friendly, caring, cartoon flame avatar assistant in the MedMax app. 
-You answer questions specifically about a user's medication for a senior they are caring for.
-Do not offer diagnosing medical advice; advise them to speak to their doctor if it sounds life-threatening.
-Keep answers extremely concise, very friendly, and simple for an elderly user or their caregiver to understand.
+const CHAT_SYSTEM_PROMPT = `You are Vela, a practical medication guide for caregivers and seniors.
+You answer only from the medication context below and the user's question.
 
-Context:
-Medication: {name}
-Dosage: {dosage}
-Instructions: {instructions}
-Known Interactions/Warnings: {warnings}
+Medication context:
+- Name: {name}
+- Dosage: {dosage}
+- Form: {form}
+- Frequency: {frequency}
+- Typical times: {times}
+- Instructions: {instructions}
+- Known interactions/warnings: {warnings}
 
-Rules:
-- Be encouraging and helpful.
-- If the question is NOT related to the medication or health, politely redirect them back to their care.
-- Do NOT use clinical jargon.
-- If you don't know the answer, tell them to check with their pharmacist.
-- Limit response to 2-3 short sentences maximum.`;
+Response rules:
+1) Start directly with the answer. No greeting, no filler, no "Hi there".
+2) Be specific to this medication (mention the medication name at least once).
+3) Give concrete, actionable guidance (timing, food, spacing, what to monitor) when possible.
+4) Use plain language. No jargon. No alarmist language.
+5) Do NOT default to "ask your doctor". Mention doctor/pharmacist only when:
+   - there is a serious red flag, or
+   - the answer is genuinely unknown from context.
+6) If question is unrelated to medication/health, briefly redirect to medication help.
+7) Keep to 2-4 short sentences maximum.
+8) Do not use bullet points or markdown.`;
 
 export async function askChatbot(
-    medInfo: { name: string; dosage: string; instructions: string; warnings?: string[] },
+    medInfo: {
+        name: string;
+        dosage: string;
+        form?: string | null;
+        frequency?: string | null;
+        scheduledTimes?: string[] | null;
+        instructions: string;
+        warnings?: string[];
+    },
     question: string
 ): Promise<string> {
     const prompt = CHAT_SYSTEM_PROMPT
         .replace("{name}", medInfo.name)
         .replace("{dosage}", medInfo.dosage)
+        .replace("{form}", medInfo.form || "unknown")
+        .replace("{frequency}", medInfo.frequency || "unknown")
+        .replace("{times}", medInfo.scheduledTimes?.join(", ") || "not specified")
         .replace("{instructions}", medInfo.instructions)
         .replace("{warnings}", medInfo.warnings?.join(", ") || "none");
 
@@ -295,17 +312,25 @@ export async function askChatbot(
                 role: "user",
                 parts: [
                     { text: `System Instruction: ${prompt}` },
-                    { text: `User Question: ${question}` }
-                ]
+                    { text: `User Question: ${question}` },
+                    { text: "Respond now following all rules exactly." }
+                ] 
             }
         ],
     });
 
-    return response.text?.trim() ?? "I'm sorry, I couldn't process that. Please try again soon.";
+    const raw = response.text?.trim() ?? "";
+    if (!raw) {
+        return "I could not process that just now. Please try the question again.";
+    }
+
+    // Keep tone direct and avoid repetitive greeting openers.
+    const cleaned = raw.replace(/^(hi|hello|hey)\b[^.!?]*[.!?]\s*/i, "").trim();
+    return cleaned || raw;
 }
 
 // ---------------------------------------------------------------------------
-// 5. Conversational Audio Script Generation — weaves instructions naturally
+// 6. Conversational Audio Script Generation — weaves instructions naturally
 // ---------------------------------------------------------------------------
 
 const CONVERSATIONAL_AUDIO_PROMPT = `You are an expert caregiver writing spoken audio scripts for an elderly patient named {seniorName}.
@@ -340,8 +365,8 @@ export async function generateConversationalAudioScripts(
 ): Promise<{ stage: "heads_up" | "action" | "follow_up"; text: string }[]> {
     const medListStr = medications.map(m =>
         `- ${m.name} ${m.dosage}` +
-        (m.color ? ` (Color: ${m.color})` : '') +
-        (m.instructions ? ` (Instructions: ${m.instructions})` : '')
+        (m.color ? ` (Color: ${m.color})` : "") +
+        (m.instructions ? ` (Instructions: ${m.instructions})` : "")
     ).join("\n");
 
     const prompt = CONVERSATIONAL_AUDIO_PROMPT
@@ -359,7 +384,6 @@ export async function generateConversationalAudioScripts(
 
         const text = response.text?.trim() ?? "";
         const cleaned = text.replace(/^```(?:json)?\s*/i, "").replace(/```\s*$/i, "").trim();
-
         const result = JSON.parse(cleaned);
 
         // Basic validation
@@ -382,12 +406,12 @@ export async function generateConversationalAudioScripts(
             colorHints = med.color ? ` — that's the ${med.color} one` : "";
         } else {
             const instructionParts = medications
-                .filter(m => m.instructions || m.color)
-                .map(m => {
+                .filter((m) => m.instructions || m.color)
+                .map((m) => {
                     let text = `For your ${m.name}`;
                     if (m.color) text += `, which is the ${m.color} one,`;
                     if (m.instructions) text += ` ${m.instructions}.`;
-                    else text += `.`;
+                    else text += ".";
                     return text;
                 });
             if (instructionParts.length > 0) detailedInstructions = " " + instructionParts.join(" ");
