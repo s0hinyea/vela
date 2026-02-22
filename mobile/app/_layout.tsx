@@ -32,6 +32,7 @@ export default function RootLayout() {
   const [hasSeniorConfigured, setHasSeniorConfigured] = useState(false);
   const [splashElapsed, setSplashElapsed] = useState(false);
   const [initialRouteSettled, setInitialRouteSettled] = useState(false);
+  const [initialRouteStabilized, setInitialRouteStabilized] = useState(false);
   const spin = useRef(new Animated.Value(0)).current;
   const profileLoadRunId = useRef(0);
   const lastInitialTarget = useRef<string | null>(null);
@@ -168,9 +169,25 @@ export default function RootLayout() {
   useEffect(() => {
     if (lastInitialTarget.current !== initialTarget) {
       setInitialRouteSettled(false);
+      setInitialRouteStabilized(false);
       lastInitialTarget.current = initialTarget;
     }
   }, [initialTarget]);
+
+  useEffect(() => {
+    if (DEMO_MODE) {
+      setInitialRouteStabilized(true);
+      return;
+    }
+
+    if (!initialRouteSettled) {
+      setInitialRouteStabilized(false);
+      return;
+    }
+
+    const timer = setTimeout(() => setInitialRouteStabilized(true), 180);
+    return () => clearTimeout(timer);
+  }, [initialRouteSettled]);
 
   // Startup + guard routing with deterministic target selection.
   useEffect(() => {
@@ -206,7 +223,7 @@ export default function RootLayout() {
     router,
   ]);
 
-  const showSplash = !startupReady || !splashElapsed || (!DEMO_MODE && !initialRouteSettled);
+  const showSplash = !startupReady || !splashElapsed || (!DEMO_MODE && !initialRouteStabilized);
 
   const rotate = spin.interpolate({
     inputRange: [0, 1],
@@ -224,6 +241,11 @@ export default function RootLayout() {
             animation: "fade",
           }}
         >
+          <Stack.Screen name="welcome" options={{ animation: "none" }} />
+          <Stack.Screen name="signin" options={{ animation: "none" }} />
+          <Stack.Screen name="signup" options={{ animation: "none" }} />
+          <Stack.Screen name="onboarding" options={{ animation: "none" }} />
+          <Stack.Screen name="greeting" options={{ animation: "none" }} />
           <Stack.Screen
             name="edit-medication"
             options={{
