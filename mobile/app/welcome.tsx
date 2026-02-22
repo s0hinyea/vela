@@ -7,6 +7,7 @@ import { View, Text, Pressable, StyleSheet, Animated, Dimensions } from "react-n
 import { useRouter } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { theme } from "../theme";
+import { VelaAvatar } from "../components/VelaAvatar";
 
 const { width } = Dimensions.get("window");
 
@@ -17,17 +18,31 @@ export default function WelcomeScreen() {
   const fadeTagline = useRef(new Animated.Value(0)).current;
   const fadeButtons = useRef(new Animated.Value(0)).current;
   const slideUp = useRef(new Animated.Value(20)).current;
+  const avatarDrop = useRef(new Animated.Value(-56)).current;
+  const avatarOpacity = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
-    Animated.stagger(300, [
-      Animated.timing(fadeBrand, { toValue: 1, duration: 600, useNativeDriver: true }),
+    Animated.parallel([
       Animated.parallel([
-        Animated.timing(fadeTagline, { toValue: 1, duration: 500, useNativeDriver: true }),
-        Animated.timing(slideUp, { toValue: 0, duration: 500, useNativeDriver: true }),
+        Animated.timing(avatarOpacity, { toValue: 1, duration: 220, useNativeDriver: true }),
+        Animated.sequence([
+          Animated.delay(120),
+          Animated.spring(avatarDrop, { toValue: 0, tension: 36, friction: 14, useNativeDriver: true }),
+        ]),
       ]),
-      Animated.timing(fadeButtons, { toValue: 1, duration: 400, useNativeDriver: true }),
+      Animated.sequence([
+        Animated.delay(300),
+        Animated.stagger(180, [
+          Animated.timing(fadeBrand, { toValue: 1, duration: 450, useNativeDriver: true }),
+          Animated.parallel([
+            Animated.timing(fadeTagline, { toValue: 1, duration: 420, useNativeDriver: true }),
+            Animated.timing(slideUp, { toValue: 0, duration: 420, useNativeDriver: true }),
+          ]),
+          Animated.timing(fadeButtons, { toValue: 1, duration: 360, useNativeDriver: true }),
+        ]),
+      ]),
     ]).start();
-  }, []);
+  }, [avatarDrop, avatarOpacity, fadeBrand, fadeButtons, fadeTagline, slideUp]);
 
   return (
     <SafeAreaView style={styles.container}>
@@ -46,11 +61,21 @@ export default function WelcomeScreen() {
           style={{ opacity: fadeTagline, transform: [{ translateY: slideUp }] }}
         >
           <Text style={styles.tagline}>
-            Your warm, daily{"\n"}medication companion
+            A warm, guiding light for daily medication.
           </Text>
-          <Text style={styles.subtag}>
-            Designed for seniors, powered by love.
-          </Text>
+        </Animated.View>
+
+        {/* Avatar anchor between tagline and CTA buttons */}
+        <Animated.View
+          style={[
+            styles.avatarAnchor,
+            {
+              opacity: avatarOpacity,
+              transform: [{ translateY: avatarDrop }],
+            },
+          ]}
+        >
+          <VelaAvatar />
         </Animated.View>
       </View>
 
@@ -99,15 +124,15 @@ const styles = StyleSheet.create({
     marginBottom: theme.spacing.lg,
   },
   brandName: {
-    fontFamily: theme.fonts.extraBold,
+    fontFamily: theme.fonts.semiBold,
     fontSize: 64,
-    color: theme.colors.primary,
+    color: theme.colors.accent,
     letterSpacing: -1,
   },
   divider: {
     width: 48,
     height: 3,
-    backgroundColor: theme.colors.accent,
+    backgroundColor: theme.colors.primary,
     borderRadius: theme.radii.full,
     marginTop: theme.spacing.sm,
   },
@@ -118,12 +143,11 @@ const styles = StyleSheet.create({
     textAlign: "center",
     lineHeight: 36,
   },
-  subtag: {
-    fontFamily: theme.fonts.medium,
-    fontSize: theme.fontSizes.sm,
-    color: theme.colors.accent,
-    textAlign: "center",
-    marginTop: theme.spacing.sm,
+  avatarAnchor: {
+    marginTop: theme.spacing.lg,
+    marginBottom: theme.spacing.sm,
+    alignItems: "center",
+    justifyContent: "center",
   },
   buttons: {
     paddingHorizontal: theme.spacing.lg,
@@ -131,7 +155,7 @@ const styles = StyleSheet.create({
     gap: theme.spacing.sm,
   },
   primaryButton: {
-    backgroundColor: theme.colors.primary,
+    backgroundColor: theme.colors.accent,
     paddingVertical: theme.spacing.md,
     borderRadius: theme.radii.xl,
     alignItems: "center",
@@ -155,7 +179,7 @@ const styles = StyleSheet.create({
     fontSize: theme.fontSizes.md,
   },
   pressed: {
-    backgroundColor: theme.colors.primaryLight,
+    backgroundColor: theme.colors.accentLight,
     transform: [{ scale: 0.97 }],
   },
   secondaryPressed: {

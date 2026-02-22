@@ -15,6 +15,7 @@ import {
   ActivityIndicator,
   Modal,
   FlatList,
+  Image,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter, useFocusEffect } from "expo-router";
@@ -23,6 +24,7 @@ import { useVelaStore } from "../../store/useVelaStore";
 import { useAuth } from "../../hooks/useAuth";
 import { fetchMedications, deleteMedication, updateLanguage, generateDemoHistory } from "../../api";
 import type { Medication } from "../../types";
+import { supabase } from "../../lib/supabase";
 
 const LANGUAGES = [
   { code: "en", flag: "🇺🇸", label: "English" },
@@ -49,6 +51,7 @@ export default function ProfileScreen() {
     profile?.preferredLanguage ?? "en"
   );
   const [savingLang, setSavingLang] = useState(false);
+  const [savingPhoto, setSavingPhoto] = useState(false);
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const [generatingDemo, setGeneratingDemo] = useState(false);
 
@@ -197,6 +200,28 @@ export default function ProfileScreen() {
     }
   };
 
+  const handleUploadPhoto = () => {
+    router.push("/profile-photo");
+  };
+
+  const handleRemovePhoto = async () => {
+    if (!profile || savingPhoto || !profile.seniorPhotoUrl) return;
+    setSavingPhoto(true);
+    try {
+      const { error } = await supabase
+        .from("profiles")
+        .update({ senior_photo_url: null })
+        .eq("id", profile.id);
+
+      if (error) throw error;
+      setProfile({ ...profile, seniorPhotoUrl: null });
+    } catch (err: any) {
+      Alert.alert("Error", err?.message || "Could not remove photo.");
+    } finally {
+      setSavingPhoto(false);
+    }
+  };
+
   return (
     <SafeAreaView style={styles.container}>
       <ScrollView
@@ -210,17 +235,48 @@ export default function ProfileScreen() {
         <View style={styles.card}>
           <View style={styles.avatarRow}>
             <View style={styles.avatar}>
-              <View style={styles.avatarHead} />
-              <View style={styles.avatarBody} />
-              <View style={styles.avatarBadge}>
-                <Text style={styles.avatarBadgeText}>{seniorName[0]}</Text>
-              </View>
+              {profile?.seniorPhotoUrl ? (
+                <Image
+                  source={{ uri: profile.seniorPhotoUrl }}
+                  style={styles.avatarImage}
+                  resizeMode="cover"
+                />
+              ) : (
+                <>
+                  <View style={styles.avatarHead} />
+                  <View style={styles.avatarBody} />
+                </>
+              )}
             </View>
             <View style={styles.avatarInfo}>
               <Text style={styles.seniorName}>{seniorName}</Text>
               <Text style={styles.caregiverLabel}>
                 Caregiver: {caregiverName}
               </Text>
+              <View style={styles.photoActionRow}>
+                <Pressable
+                  onPress={handleUploadPhoto}
+                  style={styles.photoActionButton}
+                  disabled={savingPhoto}
+                >
+                  <Text style={styles.photoActionButtonText}>
+                    {profile?.seniorPhotoUrl ? "Update photo" : "Upload photo"}
+                  </Text>
+                </Pressable>
+                {profile?.seniorPhotoUrl ? (
+                  <Pressable
+                    onPress={handleRemovePhoto}
+                    style={styles.photoRemoveButton}
+                    disabled={savingPhoto}
+                  >
+                    {savingPhoto ? (
+                      <ActivityIndicator size="small" color={theme.colors.danger} />
+                    ) : (
+                      <Text style={styles.photoRemoveButtonText}>Remove</Text>
+                    )}
+                  </Pressable>
+                ) : null}
+              </View>
             </View>
           </View>
         </View>
@@ -465,6 +521,12 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     alignItems: "center",
     position: "relative",
+    overflow: "hidden",
+  },
+  avatarImage: {
+    width: "100%",
+    height: "100%",
+    borderRadius: 28,
   },
   avatarHead: {
     width: 16,
@@ -482,24 +544,6 @@ const styles = StyleSheet.create({
     borderBottomRightRadius: 6,
     backgroundColor: theme.colors.primaryLight,
   },
-  avatarBadge: {
-    position: "absolute",
-    right: -2,
-    bottom: -2,
-    backgroundColor: theme.colors.accent,
-    width: 18,
-    height: 18,
-    borderRadius: 9,
-    alignItems: "center",
-    justifyContent: "center",
-    borderWidth: 1,
-    borderColor: theme.colors.surface,
-  },
-  avatarBadgeText: {
-    fontFamily: theme.fonts.bold,
-    fontSize: 10,
-    color: theme.colors.textOnPrimary,
-  },
   avatarInfo: {
     flex: 1,
   },
@@ -513,6 +557,36 @@ const styles = StyleSheet.create({
     fontSize: theme.fontSizes.sm,
     color: theme.colors.textSecondary,
     marginTop: 2,
+  },
+  photoActionRow: {
+    marginTop: 8,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
+  photoActionButton: {
+    backgroundColor: theme.colors.accentSoft,
+    borderRadius: theme.radii.full,
+    paddingVertical: 6,
+    paddingHorizontal: 10,
+  },
+  photoActionButtonText: {
+    fontFamily: theme.fonts.semiBold,
+    fontSize: 12,
+    color: theme.colors.accent,
+  },
+  photoRemoveButton: {
+    borderRadius: theme.radii.full,
+    paddingVertical: 6,
+    paddingHorizontal: 10,
+    borderWidth: 1,
+    borderColor: theme.colors.danger,
+    backgroundColor: theme.colors.dangerSoft,
+  },
+  photoRemoveButtonText: {
+    fontFamily: theme.fonts.semiBold,
+    fontSize: 12,
+    color: theme.colors.danger,
   },
   // Sections
   section: {
