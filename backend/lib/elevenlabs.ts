@@ -4,7 +4,7 @@ import { randomUUID } from "crypto";
 const ELEVENLABS_API_URL = "https://api.elevenlabs.io/v1/text-to-speech";
 
 // "Rachel" — warm, calm, female voice. Great default for a companion app.
-const DEFAULT_VOICE_ID = "21m00Tcm4TlvDq8ikWAM";
+const DEFAULT_VOICE_ID = "kPzsL2i3teMYv0FxEYQ6";
 const MODEL_ID = "eleven_multilingual_v2";
 
 /**

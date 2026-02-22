@@ -115,28 +115,15 @@ export async function POST(request: NextRequest) {
             );
         }
 
-        // 4. Pre-generate voice clips — use translated text if available
-        const medName = scanned.name;
-        const dosage = scanned.dosage;
-        const spokenInstructions = translatedInstructions ?? scanned.instructions ?? "";
-        const colorDesc = scanned.color ? ` — that's the ${scanned.color} one` : "";
+        // 4. Trigger background group-audio generation for today's schedule
+        const baseUrl = request.nextUrl.origin;
+        const today = new Date().toISOString().split("T")[0];
 
-        const voiceTexts = [
-            `${seniorName}, it's time for your ${medName} ${dosage}${colorDesc}. ${spokenInstructions}.`,
-            `${seniorName}, your ${medName} is coming up soon. ${spokenInstructions}.`,
-            `Just checking in — did you take your ${medName} ${dosage}?`,
-        ];
-
-        // Fire and forget — don't await, don't block the response
-        Promise.all(
-            voiceTexts.map((text) =>
-                generateAndCacheVoice(text, seniorName).catch((err) =>
-                    console.error("Voice pre-gen failed:", err)
-                )
-            )
-        ).then(() => {
-            console.log(`Voice clips pre-generated for ${medName} (lang: ${language})`);
-        });
+        fetch(`${baseUrl}/api/voice/generate-schedule`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ profileId, date: today })
+        }).catch(err => console.error("Failed to trigger schedule generation:", err));
 
         return NextResponse.json({
             success: true,

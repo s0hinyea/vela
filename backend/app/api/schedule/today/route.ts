@@ -44,6 +44,14 @@ export async function GET(request: NextRequest) {
         );
     }
 
+    // 4. Get generated voice clips for today's 'action' stage
+    const { data: voiceClips } = await supabase
+        .from("voice_clips")
+        .select()
+        .eq("profile_id", profileId)
+        .eq("date", today)
+        .eq("stage", "action");
+
     // 4. Build DoseSlot[] from medications × scheduled_times
     const now = new Date();
     const currentHHMM = `${String(now.getHours()).padStart(2, "0")}:${String(now.getMinutes()).padStart(2, "0")}`;
@@ -81,6 +89,9 @@ export async function GET(request: NextRequest) {
             const displayH = h % 12 || 12;
             const scheduledTimeLabel = `${displayH}:${String(m).padStart(2, "0")} ${ampm}`;
 
+            // Find matching grouped audio clip
+            const voiceClip = (voiceClips ?? []).find(vc => vc.scheduled_time === time);
+
             return {
                 id: log ? (log as Record<string, unknown>).id : `slot-${med.id}-${time}`,
                 medicationId: med.id,
@@ -92,7 +103,7 @@ export async function GET(request: NextRequest) {
                 scheduledTimeLabel,
                 status,
                 takenAt: log ? (log as Record<string, unknown>).taken_at : null,
-                audioUrl: null,
+                audioUrl: voiceClip?.audio_url ?? null,
             };
         });
     });

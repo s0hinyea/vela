@@ -56,6 +56,13 @@ export async function GET(request: NextRequest) {
         .eq("profile_id", profileId)
         .eq("date", today);
 
+    // 4. Get generated voice clips for today
+    const { data: voiceClips } = await supabase
+        .from("voice_clips")
+        .select()
+        .eq("profile_id", profileId)
+        .eq("date", today);
+
     // 4. Group medications by scheduled time
     //    e.g. { "08:00": [{ id, name, dosage, ... }, ...], "18:00": [...] }
     const timeGroups: Record<
@@ -113,24 +120,29 @@ export async function GET(request: NextRequest) {
 
             const medNames = meds.map((m) => m.name).join(meds.length === 2 ? " and " : ", ");
 
-            // Combine instructions (deduplicate)
-            const uniqueInstructions = [
-                ...new Set(meds.map((m) => m.instructions).filter(Boolean)),
-            ];
-            const instructionText =
-                uniqueInstructions.length > 0
-                    ? uniqueInstructions.join(". ") + "."
-                    : "";
-
-            // Color hints for multiple meds
-            const colorHints = meds
-                .filter((m) => m.color)
-                .map((m) => `${m.name} is the ${m.color} one`)
-                .join("; ");
-            const colorText = colorHints ? ` (${colorHints})` : "";
-
-            // Single notification vs multiple
             const isSingle = meds.length === 1;
+            let detailedInstructions = "";
+            let colorHints = "";
+
+            if (isSingle) {
+                const med = meds[0];
+                detailedInstructions = med.instructions ? ` ${med.instructions}.` : "";
+                colorHints = med.color ? ` — that's the ${med.color} one` : "";
+            } else {
+                const instructionParts = meds
+                    .filter(m => m.instructions || m.color)
+                    .map(m => {
+                        let text = `For your ${m.name}`;
+                        if (m.color) text += `, which is the ${m.color} one,`;
+                        if (m.instructions) text += ` ${m.instructions}.`;
+                        else text += `.`;
+                        return text;
+                    });
+
+                if (instructionParts.length > 0) {
+                    detailedInstructions = " " + instructionParts.join(" ");
+                }
+            }
 
             const stages = [
                 {
@@ -139,8 +151,8 @@ export async function GET(request: NextRequest) {
                     title: isSingle
                         ? `Coming up: ${medNames}`
                         : `Coming up: ${meds.length} medications at ${displayTime}`,
-                    body: `${seniorName}, your ${medList} ${isSingle ? "is" : "are"} coming up soon. ${instructionText}`,
-                    audioText: `${seniorName}, your ${medList} ${isSingle ? "is" : "are"} coming up soon. ${instructionText}`,
+                    body: `${seniorName}, your ${medList} ${isSingle ? "is" : "are"} coming up soon.${detailedInstructions}`,
+                    audioText: `${seniorName}, your ${medList} ${isSingle ? "is" : "are"} coming up soon.${detailedInstructions}`,
                 },
                 {
                     stage: "action",
@@ -148,8 +160,8 @@ export async function GET(request: NextRequest) {
                     title: isSingle
                         ? `Time for ${medList}`
                         : `Time for ${meds.length} medications`,
-                    body: `${seniorName}, it's time for your ${medList}${colorText}. ${instructionText} Tap here.`,
-                    audioText: `${seniorName}, it's time for your ${medList}${colorText}. ${instructionText}`,
+                    body: `${seniorName}, it's time for your ${medList}${colorHints}.${detailedInstructions} Tap here.`,
+                    audioText: `${seniorName}, it's time for your ${medList}${colorHints}.${detailedInstructions}`,
                 },
                 {
                     stage: "follow_up",
@@ -162,23 +174,30 @@ export async function GET(request: NextRequest) {
                 },
             ];
 
-            return stages.map((stage) => ({
-                id: `notif-${time}-${stage.stage}`,
-                scheduledTime: time,
-                scheduledTimeLabel: displayTime,
-                stage: stage.stage,
-                triggerTime: stage.triggerTime,
-                title: stage.title,
-                body: stage.body,
-                audioText: stage.audioText,
-                medications: meds.map((med) => ({
-                    id: med.id,
-                    name: med.name,
-                    dosage: med.dosage,
-                })),
-                allTaken,
-                date: today,
-            }));
+            return stages.map((stage) => {
+                const voiceClip = (voiceClips ?? []).find(
+                    vc => vc.scheduled_time === time && vc.stage === stage.stage
+                );
+
+                return {
+                    id: `notif-${time}-${stage.stage}`,
+                    scheduledTime: time,
+                    scheduledTimeLabel: displayTime,
+                    stage: stage.stage,
+                    triggerTime: stage.triggerTime,
+                    title: stage.title,
+                    body: stage.body,
+                    audioText: stage.audioText,
+                    audioUrl: voiceClip?.audio_url ?? null,
+                    medications: meds.map((med) => ({
+                        id: med.id,
+                        name: med.name,
+                        dosage: med.dosage,
+                    })),
+                    allTaken,
+                    date: today,
+                };
+            });
         }
     );
 

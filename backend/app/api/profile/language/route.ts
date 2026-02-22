@@ -115,32 +115,21 @@ export async function PATCH(request: NextRequest) {
                 continue;
             }
 
-            // 6. Regenerate voice clips with translated text
-            const spokenInstructions = translated ?? med.instructions ?? "";
-            const colorDesc = med.color ? ` — that's the ${med.color} one` : "";
-
-            const voiceTexts = [
-                `${seniorName}, it's time for your ${med.name} ${med.dosage}${colorDesc}. ${spokenInstructions}.`,
-                `${seniorName}, your ${med.name} is coming up soon. ${spokenInstructions}.`,
-                `Just checking in — did you take your ${med.name} ${med.dosage}?`,
-            ];
-
-            // Fire and forget voice generation — don't block the loop
-            Promise.all(
-                voiceTexts.map((text) =>
-                    generateAndCacheVoice(text, seniorName).catch((err) =>
-                        console.error(`[language] Voice regen failed for ${med.name}:`, err)
-                    )
-                )
-            ).then(() => {
-                console.log(`[language] 🔊 Voice clips regenerated for ${med.name} (${language})`);
-            });
-
             results.push({
                 id: med.id,
                 instructionsTranslated: translated,
             });
         }
+
+        // 6. Trigger background group-audio generation to compile new translated schedules
+        const baseUrl = request.nextUrl.origin;
+        const today = new Date().toISOString().split("T")[0];
+
+        fetch(`${baseUrl}/api/voice/generate-schedule`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ profileId, date: today })
+        }).catch(err => console.error("Failed to trigger schedule generation:", err));
 
         return NextResponse.json({
             success: true,
