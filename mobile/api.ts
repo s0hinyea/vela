@@ -58,6 +58,30 @@ export async function createProfile(
   return json.data;
 }
 
+export async function verifyCaregiverPin(
+  profileId: string,
+  pin: string
+): Promise<{ valid: boolean }> {
+  if (DEMO_MODE) return mockDelay({ valid: pin === "1234" }, 300);
+  const base = getNormalizedApiBase();
+  const res = await fetch(`${base}/api/profile/verify-pin`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ profileId, pin }),
+  });
+  const text = await res.text();
+  let json: any = null;
+  try {
+    json = text ? JSON.parse(text) : null;
+  } catch {
+    json = null;
+  }
+  if (!res.ok || !json?.success) {
+    throw new Error(json?.error || `PIN verification failed (${res.status}).`);
+  }
+  return json.data;
+}
+
 // ─── Medications ──────────────────────────────────────────────────────────────
 export async function fetchMedications(profileId: string): Promise<Medication[]> {
   if (DEMO_MODE) return mockDelay(MOCK_MEDICATIONS);

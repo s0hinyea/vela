@@ -11,12 +11,12 @@ import {
   StyleSheet,
   ScrollView,
   ActivityIndicator,
-  Alert,
   Animated,
   TextInput,
   LayoutAnimation,
   Platform,
   UIManager,
+  Easing,
 } from "react-native";
 
 // Enable LayoutAnimation on Android
@@ -27,7 +27,7 @@ import { useRouter, useLocalSearchParams } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
 import DateTimePicker from "@react-native-community/datetimepicker";
 import { theme } from "../theme";
-import { checkInteractions, fetchMedications, saveMedication } from "../api";
+import { checkInteractions, fetchMedications, saveMedication, verifyCaregiverPin } from "../api";
 import { useVelaStore } from "../store/useVelaStore";
 import type { ScannedMedication, InteractionWarning } from "../types";
 
@@ -54,6 +54,12 @@ export default function ConfirmScreen() {
   const [checkingInteractions, setCheckingInteractions] = useState(false);
   const [showMoreDetails, setShowMoreDetails] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
+  const [pinModalMounted, setPinModalMounted] = useState(false);
+  const [pinModalVisible, setPinModalVisible] = useState(false);
+  const [pinValue, setPinValue] = useState("");
+  const [pinError, setPinError] = useState<string | null>(null);
+  const [verifyingPin, setVerifyingPin] = useState(false);
   const [existingMedNames, setExistingMedNames] = useState<string[]>(
     medications.map((m) => m.name)
   );
@@ -102,6 +108,8 @@ export default function ConfirmScreen() {
   // Animations
   const fadeIn = useRef(new Animated.Value(0)).current;
   const warningFade = useRef(new Animated.Value(0)).current;
+  const pinModalAnim = useRef(new Animated.Value(0)).current;
+  const pinShakeAnim = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
     Animated.timing(fadeIn, {
@@ -159,9 +167,10 @@ export default function ConfirmScreen() {
     return () => clearTimeout(timeoutId);
   }, [editableName, editableDosage]);
 
-  const handleConfirm = async () => {
+  const runSaveMedication = async () => {
     if (!scanned || !profile) return;
     setSaving(true);
+    setSaveError(null);
     try {
       await saveMedication({
         profileId: profile.id,
@@ -170,10 +179,82 @@ export default function ConfirmScreen() {
         finalTimes: editableTimes.map(formatTime),
       });
       router.replace("/(tabs)");
-    } catch {
-      Alert.alert("Error", "Could not save medication. Please try again.");
+    } catch (err: any) {
+      setSaveError(err?.message || "Could not save medication. Please try again.");
     } finally {
       setSaving(false);
+    }
+  };
+
+  const openPinModal = () => {
+    if (pinModalMounted) return;
+    setPinModalMounted(true);
+    setPinModalVisible(true);
+    setPinValue("");
+    setPinError(null);
+    pinModalAnim.setValue(0);
+    Animated.timing(pinModalAnim, {
+      toValue: 1,
+      duration: 240,
+      easing: Easing.out(Easing.cubic),
+      useNativeDriver: true,
+    }).start();
+  };
+
+  const closePinModal = () => {
+    if (!pinModalMounted || verifyingPin) return;
+    setPinModalVisible(false);
+    Animated.timing(pinModalAnim, {
+      toValue: 0,
+      duration: 180,
+      easing: Easing.in(Easing.cubic),
+      useNativeDriver: true,
+    }).start(({ finished }) => {
+      if (finished) {
+        setPinModalMounted(false);
+        setPinValue("");
+        setPinError(null);
+      }
+    });
+  };
+
+  const shakePinInput = () => {
+    pinShakeAnim.setValue(0);
+    Animated.sequence([
+      Animated.timing(pinShakeAnim, { toValue: 1, duration: 60, useNativeDriver: true }),
+      Animated.timing(pinShakeAnim, { toValue: -1, duration: 60, useNativeDriver: true }),
+      Animated.timing(pinShakeAnim, { toValue: 0.7, duration: 45, useNativeDriver: true }),
+      Animated.timing(pinShakeAnim, { toValue: -0.7, duration: 45, useNativeDriver: true }),
+      Animated.timing(pinShakeAnim, { toValue: 0, duration: 40, useNativeDriver: true }),
+    ]).start();
+  };
+
+  const handleConfirm = () => {
+    if (!scanned || !profile || saving || verifyingPin) return;
+    setSaveError(null);
+    openPinModal();
+  };
+
+  const handleVerifyPinAndSave = async () => {
+    if (!profile || saving || verifyingPin) return;
+
+    if (!/^\d{4}$/.test(pinValue)) {
+      setPinError("Enter your 4-digit caregiver PIN.");
+      shakePinInput();
+      return;
+    }
+
+    setVerifyingPin(true);
+    setPinError(null);
+    try {
+      await verifyCaregiverPin(profile.id, pinValue);
+      closePinModal();
+      await runSaveMedication();
+    } catch (err: any) {
+      setPinError(err?.message || "Invalid caregiver PIN.");
+      shakePinInput();
+    } finally {
+      setVerifyingPin(false);
     }
   };
 
@@ -200,10 +281,11 @@ export default function ConfirmScreen() {
 
   return (
     <SafeAreaView style={styles.container}>
-      <ScrollView
-        contentContainerStyle={styles.scroll}
-        showsVerticalScrollIndicator={false}
-      >
+      <View style={styles.screen}>
+        <ScrollView
+          contentContainerStyle={styles.scroll}
+          showsVerticalScrollIndicator={false}
+        >
         {/* Removed text "Back" link from top as requested */}
 
         {/* Conversational header */}
@@ -444,6 +526,11 @@ export default function ConfirmScreen() {
 
         {/* Action buttons */}
         <View style={styles.actions}>
+          {saveError ? (
+            <View style={styles.saveErrorBox}>
+              <Text style={styles.saveErrorText}>{saveError}</Text>
+            </View>
+          ) : null}
           <Pressable
             style={({ pressed }) => [
               styles.confirmButton,
@@ -483,7 +570,87 @@ export default function ConfirmScreen() {
             <Text style={styles.discardButtonText}>Discard</Text>
           </Pressable>
         </View>
-      </ScrollView>
+        </ScrollView>
+
+        {pinModalMounted ? (
+          <Animated.View
+            pointerEvents={pinModalVisible ? "auto" : "none"}
+            style={[styles.pinOverlay, { opacity: pinModalAnim }]}
+          >
+            <Pressable style={styles.pinBackdrop} onPress={closePinModal} />
+            <Animated.View
+              style={[
+                styles.pinCard,
+                {
+                  opacity: pinModalAnim,
+                  transform: [
+                    {
+                      translateY: pinModalAnim.interpolate({
+                        inputRange: [0, 1],
+                        outputRange: [28, 0],
+                      }),
+                    },
+                    {
+                      translateX: pinShakeAnim.interpolate({
+                        inputRange: [-1, 1],
+                        outputRange: [-10, 10],
+                      }),
+                    },
+                  ],
+                },
+              ]}
+            >
+              <Text style={styles.pinTitle}>Caregiver PIN Required</Text>
+              <Text style={styles.pinSubtext}>
+                Enter your 4-digit caregiver PIN to add this medication.
+              </Text>
+
+              <TextInput
+                style={[styles.pinInput, pinError ? styles.pinInputError : null]}
+                value={pinValue}
+                onChangeText={(text) => {
+                  const digitsOnly = text.replace(/\D/g, "").slice(0, 4);
+                  setPinValue(digitsOnly);
+                  if (pinError) setPinError(null);
+                }}
+                keyboardType="number-pad"
+                secureTextEntry
+                maxLength={4}
+                autoFocus
+                placeholder="••••"
+                placeholderTextColor={theme.colors.textSecondary}
+              />
+
+              {pinError ? <Text style={styles.pinErrorText}>{pinError}</Text> : null}
+
+              <View style={styles.pinActions}>
+                <Pressable
+                  style={({ pressed }) => [styles.pinCancelButton, pressed && styles.pinCancelPressed]}
+                  onPress={closePinModal}
+                  disabled={verifyingPin}
+                >
+                  <Text style={styles.pinCancelText}>Cancel</Text>
+                </Pressable>
+                <Pressable
+                  style={({ pressed }) => [
+                    styles.pinConfirmButton,
+                    pressed && styles.pinConfirmPressed,
+                    (verifyingPin || pinValue.length !== 4) && styles.buttonDisabled,
+                  ]}
+                  onPress={handleVerifyPinAndSave}
+                  disabled={verifyingPin || pinValue.length !== 4}
+                >
+                  {verifyingPin ? (
+                    <ActivityIndicator color={theme.colors.textOnPrimary} />
+                  ) : (
+                    <Text style={styles.pinConfirmText}>Verify & Save</Text>
+                  )}
+                </Pressable>
+              </View>
+            </Animated.View>
+          </Animated.View>
+        ) : null}
+      </View>
     </SafeAreaView>
   );
 }
@@ -492,6 +659,9 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: theme.colors.background,
+  },
+  screen: {
+    flex: 1,
   },
   centered: {
     flex: 1,
@@ -829,6 +999,19 @@ const styles = StyleSheet.create({
     gap: theme.spacing.sm,
     marginTop: theme.spacing.md,
   },
+  saveErrorBox: {
+    backgroundColor: theme.colors.dangerSoft,
+    borderWidth: 1,
+    borderColor: theme.colors.danger,
+    borderRadius: theme.radii.lg,
+    padding: theme.spacing.sm,
+  },
+  saveErrorText: {
+    color: theme.colors.danger,
+    fontFamily: theme.fonts.medium,
+    fontSize: theme.fontSizes.sm,
+    textAlign: "center",
+  },
   confirmButton: {
     backgroundColor: theme.colors.primary,
     paddingVertical: theme.spacing.md,
@@ -886,6 +1069,98 @@ const styles = StyleSheet.create({
     fontFamily: theme.fonts.semiBold,
     color: theme.colors.danger,
     fontSize: theme.fontSizes.md,
+  },
+  pinOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    justifyContent: "center",
+    alignItems: "center",
+    zIndex: 40,
+  },
+  pinBackdrop: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: "rgba(0,0,0,0.35)",
+  },
+  pinCard: {
+    width: "88%",
+    backgroundColor: theme.colors.surface,
+    borderRadius: theme.radii.xl,
+    padding: theme.spacing.lg,
+    borderWidth: 1,
+    borderColor: theme.colors.border,
+    ...theme.shadows.card,
+  },
+  pinTitle: {
+    fontFamily: theme.fonts.bold,
+    fontSize: theme.fontSizes.lg,
+    color: theme.colors.primary,
+    marginBottom: 6,
+  },
+  pinSubtext: {
+    fontFamily: theme.fonts.regular,
+    fontSize: theme.fontSizes.sm,
+    color: theme.colors.textSecondary,
+    marginBottom: theme.spacing.md,
+  },
+  pinInput: {
+    borderWidth: 1.5,
+    borderColor: theme.colors.border,
+    borderRadius: theme.radii.lg,
+    backgroundColor: theme.colors.background,
+    fontFamily: theme.fonts.bold,
+    fontSize: 22,
+    color: theme.colors.primary,
+    letterSpacing: 10,
+    textAlign: "center",
+    paddingVertical: theme.spacing.sm,
+    paddingHorizontal: theme.spacing.md,
+  },
+  pinInputError: {
+    borderColor: theme.colors.danger,
+  },
+  pinErrorText: {
+    marginTop: 8,
+    color: theme.colors.danger,
+    fontFamily: theme.fonts.medium,
+    fontSize: theme.fontSizes.sm,
+  },
+  pinActions: {
+    marginTop: theme.spacing.md,
+    flexDirection: "row",
+    justifyContent: "flex-end",
+    gap: theme.spacing.sm,
+  },
+  pinCancelButton: {
+    borderWidth: 1.5,
+    borderColor: theme.colors.border,
+    borderRadius: theme.radii.lg,
+    paddingVertical: theme.spacing.xs,
+    paddingHorizontal: theme.spacing.md,
+    backgroundColor: theme.colors.surfaceWarm,
+  },
+  pinCancelPressed: {
+    opacity: 0.8,
+  },
+  pinCancelText: {
+    fontFamily: theme.fonts.semiBold,
+    color: theme.colors.textSecondary,
+    fontSize: theme.fontSizes.sm,
+  },
+  pinConfirmButton: {
+    borderRadius: theme.radii.lg,
+    paddingVertical: theme.spacing.xs,
+    paddingHorizontal: theme.spacing.md,
+    minWidth: 118,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: theme.colors.primary,
+  },
+  pinConfirmPressed: {
+    opacity: 0.9,
+  },
+  pinConfirmText: {
+    fontFamily: theme.fonts.bold,
+    color: theme.colors.textOnPrimary,
+    fontSize: theme.fontSizes.sm,
   },
   buttonDisabled: { opacity: 0.6 },
 });
