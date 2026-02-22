@@ -124,6 +124,7 @@ export default function NowScreen() {
 
   // No slots at all — empty state (brand new user)
   if (!currentSlot) {
+    const hasAnySchedule = todaySlots.length > 0;
     const upcoming = todaySlots.filter((s) => s.status === "upcoming");
     const missed = todaySlots.filter((s) => s.status === "missed");
 
@@ -140,7 +141,10 @@ export default function NowScreen() {
         </View>
 
         <ScrollView
-          contentContainerStyle={styles.scrollContent}
+          contentContainerStyle={[
+            styles.scrollContent,
+            !hasAnySchedule && styles.scrollContentEmpty,
+          ]}
           showsVerticalScrollIndicator={false}
           refreshControl={
             <RefreshControl
@@ -151,25 +155,25 @@ export default function NowScreen() {
           }
         >
           {/* Status message */}
-          <View style={styles.caughtUpHeader}>
-            <Text style={styles.caughtUpEmoji}>🌿</Text>
-            <View>
-              <Text style={styles.caughtUpTitle}>{t.allCaughtUp}</Text>
-              <Text style={styles.caughtUpSub}>
-                {missed.length > 0
-                  ? "Some doses were missed earlier today"
-                  : upcoming.length > 0
-                  ? t.nextMedLater
-                  : todaySlots.length > 0
-                    ? t.noMoreMedsToday
-                    : t.welcomeToVela}
-              </Text>
+          {hasAnySchedule && (
+            <View style={styles.caughtUpHeader}>
+              <Text style={styles.caughtUpEmoji}>🌿</Text>
+              <View>
+                <Text style={styles.caughtUpTitle}>{t.allCaughtUp}</Text>
+                <Text style={styles.caughtUpSub}>
+                  {missed.length > 0
+                    ? "Some doses were missed earlier today"
+                    : upcoming.length > 0
+                    ? t.nextMedLater
+                    : t.noMoreMedsToday}
+                </Text>
+              </View>
             </View>
-          </View>
+          )}
 
           {/* Empty state if nothing scheduled at all */}
-          {todaySlots.length === 0 && (
-            <View style={styles.emptyStateCard}>
+          {!hasAnySchedule && (
+            <View style={[styles.emptyStateCard, styles.emptyStateCardExpanded]}>
               <Text style={styles.emptyStateEmoji}>✨</Text>
               <Text style={styles.emptyStateTitle}>{t.scheduleEmpty}</Text>
               <Text style={styles.emptyStateSub}>
@@ -179,7 +183,7 @@ export default function NowScreen() {
           )}
 
           {/* Today's medication list */}
-          {todaySlots.length > 0 && (
+          {hasAnySchedule && (
             <View style={styles.progressSection}>
               <Text style={styles.progressLabel}>{t.todaysMeds}</Text>
               {todaySlots.map((slot) => (
@@ -574,6 +578,10 @@ const styles = StyleSheet.create({
     borderStyle: "dashed",
     marginTop: theme.spacing.lg,
   },
+  emptyStateCardExpanded: {
+    marginTop: 0,
+    minHeight: 300,
+  },
   emptyStateEmoji: {
     fontSize: 48,
     marginBottom: theme.spacing.md,
@@ -694,9 +702,13 @@ const styles = StyleSheet.create({
   },
   // Scroll
   scrollContent: {
+    flexGrow: 1,
     paddingHorizontal: theme.spacing.lg,
     paddingTop: theme.spacing.md,
     paddingBottom: theme.spacing.md,
+  },
+  scrollContentEmpty: {
+    justifyContent: "center",
   },
   // Time badge
   timeBadge: {
@@ -866,7 +878,7 @@ const styles = StyleSheet.create({
   // Add button
   addButton: {
     marginHorizontal: theme.spacing.lg,
-    marginBottom: theme.spacing.lg,
+    marginBottom: theme.spacing.xs,
     paddingVertical: theme.spacing.sm,
     borderRadius: theme.radii.xl,
     borderWidth: 2,
@@ -886,7 +898,7 @@ const styles = StyleSheet.create({
   simulateButton: {
     alignItems: "center",
     paddingVertical: 4,
-    marginBottom: theme.spacing.sm,
+    marginBottom: 2,
     opacity: 0.3,
   },
   simulateText: {
