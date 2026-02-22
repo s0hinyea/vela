@@ -13,6 +13,7 @@ import {
 } from "@expo-google-fonts/inter";
 import { theme } from "../theme";
 import { useAuth } from "../hooks/useAuth";
+import { useNotifications } from "../hooks/useNotifications";
 import { DEMO_MODE } from "../mocks";
 
 export default function RootLayout() {
@@ -29,14 +30,20 @@ export default function RootLayout() {
   const [hasSeniorConfigured, setHasSeniorConfigured] = useState(false);
   const router = useRouter();
   const segments = useSegments();
+  const { scheduleAll } = useNotifications();
 
   // Check profile state when user changes
   useEffect(() => {
+    // If not authenticated, we know there's no profile to load
     if (!user) {
+      setHasSeniorConfigured(false);
       setProfileLoaded(true);
       return;
     }
-    
+
+    // Reset profile loaded state when a user signs in, so we wait for the fetch
+    setProfileLoaded(false);
+
     // Check if senior_name exists
     import("../lib/supabase").then(({ supabase }) => {
       supabase.from("profiles")
@@ -56,38 +63,50 @@ export default function RootLayout() {
     return () => sub.remove();
   }, [user]);
 
+  // Schedule notifications when user is authenticated
+  useEffect(() => {
+    if (user && hasSeniorConfigured) {
+      scheduleAll(user.id);
+    }
+  }, [user, hasSeniorConfigured, scheduleAll]);
+
   // Route protection: redirect based on auth + profile state
   useEffect(() => {
-    // Wait until everything is fully loaded AND segments are available
+    // 1. Wait until everything is fully loaded AND segments are available
     if (authLoading || !fontsLoaded || !profileLoaded || !segments.length) return;
 
-    // Demo mode skips auth + onboarding entirely
+    // 2. Demo mode skips auth + onboarding entirely
     if (DEMO_MODE) return;
 
-    const inAuthGroup =
-      segments[0] === "welcome" ||
-      segments[0] === "signup" ||
-      segments[0] === "signin";
-    
-    // We only want to protect the top-level route if it's explicitly onboarding
-    const onOnboarding = segments[0] === "onboarding";
+    const inAuthGroup = segments[0] === "welcome" || segments[0] === "signup" || segments[0] === "signin";
+    const inOnboardingGroup = segments[0] === "onboarding";
 
-    if (!user && !inAuthGroup) {
-      // 1. Not signed in → Welcome
-      router.replace("/welcome");
-    } else if (user) {
-      // 2. Signed in, but hasn't named senior → Onboarding
-      if (!hasSeniorConfigured && !onOnboarding) {
-        router.replace("/onboarding");
-      } 
-      // 3. Signed in, HAS named senior, but still on auth/onboarding screens → Home
-      else if (hasSeniorConfigured && (inAuthGroup || onOnboarding)) {
-        router.replace("/");
+    if (!user) {
+      // Not signed in -> Must be in auth group
+      if (!inAuthGroup) {
+        router.replace("/welcome");
+      }
+    } else {
+      // Signed in
+      if (!hasSeniorConfigured) {
+        // Needs to configure senior -> Must be in onboarding
+        if (!inOnboardingGroup) {
+          router.replace("/onboarding");
+        }
+      } else {
+        // Has a configured senior -> Must NOT be in auth or onboarding
+        if (inAuthGroup || inOnboardingGroup) {
+          router.replace("/greeting");
+        }
       }
     }
   }, [user, authLoading, fontsLoaded, profileLoaded, hasSeniorConfigured, segments]);
 
-  if (!fontsLoaded || authLoading || !profileLoaded) {
+  // Only render the router if we are absolutely sure about the auth state AND the profile state
+  // to prevent the UI flashing "Welcome -> Onboarding -> Greeting" rapidly on app launch.
+  const isReadyForRouting = fontsLoaded && !authLoading && profileLoaded;
+
+  if (!isReadyForRouting) {
     return (
       <View
         style={{
@@ -123,7 +142,15 @@ export default function RootLayout() {
           contentStyle: { backgroundColor: theme.colors.background },
           animation: "fade",
         }}
-      />
+      >
+        <Stack.Screen
+          name="edit-medication"
+          options={{
+            presentation: "modal",
+            animation: "slide_from_bottom",
+          }}
+        />
+      </Stack>
     </SafeAreaProvider>
   );
 }
