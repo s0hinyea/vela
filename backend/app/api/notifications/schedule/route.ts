@@ -185,8 +185,8 @@ export async function GET(request: NextRequest) {
                     scheduledTimeLabel: displayTime,
                     stage: stage.stage,
                     triggerTime: stage.triggerTime,
-                    title: stage.title,
-                    body: stage.body,
+                    title: voiceClip?.notification_title ?? stage.title,
+                    body: voiceClip?.notification_body ?? stage.body,
                     audioText: stage.audioText,
                     audioUrl: voiceClip?.audio_url ?? null,
                     medications: meds.map((med) => ({
@@ -204,25 +204,9 @@ export async function GET(request: NextRequest) {
     // Sort by trigger time
     notifications.sort((a, b) => a.triggerTime.localeCompare(b.triggerTime));
 
-    // 6. Translate notification texts if language isn't English
-    if (language !== "en" && notifications.length > 0) {
-        // Collect all translatable strings: [title, body, audioText] × N notifications
-        const allTexts = notifications.flatMap((n) => [n.title, n.body, n.audioText]);
-
-        try {
-            const translated = await translateNotificationTexts(allTexts, language);
-
-            // Map translated strings back onto notifications (groups of 3)
-            for (let i = 0; i < notifications.length; i++) {
-                notifications[i].title = translated[i * 3] ?? notifications[i].title;
-                notifications[i].body = translated[i * 3 + 1] ?? notifications[i].body;
-                notifications[i].audioText = translated[i * 3 + 2] ?? notifications[i].audioText;
-            }
-        } catch (err) {
-            console.error("Notification translation failed, using English:", err);
-        }
-    }
-
+    // The notification titles and bodies were already translated and saved into 
+    // the voice_clips table by the background generate-schedule process.
+    // We simply returned them directly from the DB query above! 
     return NextResponse.json({
         success: true,
         data: {
