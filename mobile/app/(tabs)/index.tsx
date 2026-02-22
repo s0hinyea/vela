@@ -25,6 +25,36 @@ import { logDose, fetchMedications, fetchTodaySchedule } from "../../api";
 import { useT } from "../../i18n";
 import { PulsingVelaOverlay } from "../../components/PulsingVelaOverlay";
 
+const DOSE_WINDOW_MINUTES = 30;
+
+function toMinutes(time: string): number {
+  const [h, m] = time.split(":").map((part) => Number(part));
+  if (!Number.isFinite(h) || !Number.isFinite(m)) return 0;
+  return h * 60 + m;
+}
+
+function toTimeLabel(totalMinutes: number): string {
+  const clamped = Math.max(0, Math.min(1439, totalMinutes));
+  const h = Math.floor(clamped / 60);
+  const m = clamped % 60;
+  const ampm = h >= 12 ? "PM" : "AM";
+  const displayH = h % 12 || 12;
+  return `${displayH}:${String(m).padStart(2, "0")} ${ampm}`;
+}
+
+function getDoseWindow(scheduledTime: string, nowDate: Date) {
+  const scheduledMinutes = toMinutes(scheduledTime);
+  const startMinutes = Math.max(0, scheduledMinutes - DOSE_WINDOW_MINUTES);
+  const endMinutes = Math.min(1439, scheduledMinutes + DOSE_WINDOW_MINUTES);
+  const nowMinutes = nowDate.getHours() * 60 + nowDate.getMinutes();
+
+  return {
+    withinWindow: nowMinutes >= startMinutes && nowMinutes <= endMinutes,
+    startLabel: toTimeLabel(startMinutes),
+    endLabel: toTimeLabel(endMinutes),
+  };
+}
+
 export default function NowScreen() {
   const router = useRouter();
   const { currentSlot, todaySlots, allTaken, markTaken, profile, forceDue, setSchedule, setMedications } = useVelaStore();
@@ -49,6 +79,10 @@ export default function NowScreen() {
 
   // Refresh functionality
   const [refreshing, setRefreshing] = useState(false);
+  const [timingError, setTimingError] = useState<string | null>(null);
+  const timingErrorOpacity = useRef(new Animated.Value(0)).current;
+  const timingErrorTranslateY = useRef(new Animated.Value(-8)).current;
+  const timingErrorTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const onRefresh = useCallback(async () => {
     if (!profile) return;
@@ -78,6 +112,31 @@ export default function NowScreen() {
       Animated.spring(slideUp, { toValue: 0, tension: 60, friction: 10, useNativeDriver: true }),
     ]).start();
   }, [currentSlot?.id]);
+
+  useEffect(() => {
+    return () => {
+      if (timingErrorTimer.current) clearTimeout(timingErrorTimer.current);
+    };
+  }, []);
+
+  const showTimingError = useCallback((message: string) => {
+    if (timingErrorTimer.current) clearTimeout(timingErrorTimer.current);
+    setTimingError(message);
+    timingErrorOpacity.setValue(0);
+    timingErrorTranslateY.setValue(-8);
+    Animated.parallel([
+      Animated.timing(timingErrorOpacity, { toValue: 1, duration: 220, useNativeDriver: true }),
+      Animated.timing(timingErrorTranslateY, { toValue: 0, duration: 220, useNativeDriver: true }),
+    ]).start();
+    timingErrorTimer.current = setTimeout(() => {
+      Animated.parallel([
+        Animated.timing(timingErrorOpacity, { toValue: 0, duration: 220, useNativeDriver: true }),
+        Animated.timing(timingErrorTranslateY, { toValue: -8, duration: 220, useNativeDriver: true }),
+      ]).start(({ finished }) => {
+        if (finished) setTimingError(null);
+      });
+    }, 3200);
+  }, [timingErrorOpacity, timingErrorTranslateY]);
 
   const getStatusLabel = (status: string) => {
     if (status === "taken") return t.taken;
@@ -265,8 +324,14 @@ export default function NowScreen() {
     );
   }
 
+  const doseWindow = getDoseWindow(currentSlot.scheduledTime, now);
+
   const handleTaken = async () => {
     if (!profile || !currentSlot) return;
+    if (!doseWindow.withinWindow) {
+      showTimingError(`You can confirm this dose between ${doseWindow.startLabel} and ${doseWindow.endLabel}.`);
+      return;
+    }
     setLogging(true);
     try {
       await logDose({
@@ -289,7 +354,9 @@ export default function NowScreen() {
           router.push("/done");
         }
       }
-    } catch (e) {
+    } catch (e: any) {
+      const message = e instanceof Error ? e.message : "Could not confirm dose right now.";
+      showTimingError(message);
       console.error("Failed to log dose", e);
     } finally {
       setLogging(false);
@@ -373,6 +440,7 @@ export default function NowScreen() {
           <Pressable
             style={({ pressed }) => [
               styles.takenButton,
+              !doseWindow.withinWindow && styles.takenButtonLocked,
               pressed && styles.takenButtonPressed,
               logging && styles.buttonDisabled,
             ]}
@@ -390,6 +458,29 @@ export default function NowScreen() {
               </>
             )}
           </Pressable>
+
+          <Text
+            style={[
+              styles.windowHint,
+              !doseWindow.withinWindow && styles.windowHintLocked,
+            ]}
+          >
+            Confirm between {doseWindow.startLabel} and {doseWindow.endLabel}
+          </Text>
+
+          {timingError && (
+            <Animated.View
+              style={[
+                styles.timingErrorBanner,
+                {
+                  opacity: timingErrorOpacity,
+                  transform: [{ translateY: timingErrorTranslateY }],
+                },
+              ]}
+            >
+              <Text style={styles.timingErrorText}>{timingError}</Text>
+            </Animated.View>
+          )}
 
           <Pressable
             style={({ pressed }) => [
@@ -800,6 +891,9 @@ const styles = StyleSheet.create({
     backgroundColor: theme.colors.primaryLight,
     transform: [{ scale: 0.97 }],
   },
+  takenButtonLocked: {
+    backgroundColor: theme.colors.border,
+  },
   takenButtonText: {
     fontFamily: theme.fonts.bold,
     color: theme.colors.textOnPrimary,
@@ -809,6 +903,29 @@ const styles = StyleSheet.create({
     fontFamily: theme.fonts.bold,
     color: theme.colors.textOnPrimary,
     fontSize: theme.fontSizes.lg,
+  },
+  windowHint: {
+    fontFamily: theme.fonts.medium,
+    fontSize: theme.fontSizes.xs,
+    color: theme.colors.textSecondary,
+    textAlign: "center",
+  },
+  windowHintLocked: {
+    color: theme.colors.danger,
+  },
+  timingErrorBanner: {
+    backgroundColor: theme.colors.dangerSoft,
+    borderColor: theme.colors.danger,
+    borderWidth: 1,
+    borderRadius: theme.radii.md,
+    paddingVertical: theme.spacing.xs,
+    paddingHorizontal: theme.spacing.sm,
+  },
+  timingErrorText: {
+    fontFamily: theme.fonts.medium,
+    fontSize: theme.fontSizes.xs,
+    color: theme.colors.danger,
+    textAlign: "center",
   },
   voiceButton: {
     borderWidth: 2,

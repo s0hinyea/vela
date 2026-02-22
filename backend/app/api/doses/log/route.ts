@@ -2,6 +2,23 @@ import { NextRequest, NextResponse } from "next/server";
 import { getSupabase } from "@/lib/supabase";
 import { getDateTimeInZone } from "@/lib/datetime";
 
+const DOSE_WINDOW_MINUTES = 30;
+
+function toMinutes(time: string): number {
+    const [h, m] = time.split(":").map((part) => Number(part));
+    if (!Number.isFinite(h) || !Number.isFinite(m)) return 0;
+    return h * 60 + m;
+}
+
+function toDisplayTime(totalMinutes: number): string {
+    const clamped = Math.max(0, Math.min(1439, totalMinutes));
+    const h = Math.floor(clamped / 60);
+    const m = clamped % 60;
+    const ampm = h >= 12 ? "PM" : "AM";
+    const displayH = h % 12 || 12;
+    return `${displayH}:${String(m).padStart(2, "0")} ${ampm}`;
+}
+
 // POST /api/doses/log — Mark a dose as taken
 export async function POST(request: NextRequest) {
     try {
@@ -26,7 +43,9 @@ export async function POST(request: NextRequest) {
         }
 
         const supabase = getSupabase();
-        const { today } = getDateTimeInZone(typeof timeZone === "string" ? timeZone : null);
+        const { today, currentMinutes } = getDateTimeInZone(
+            typeof timeZone === "string" ? timeZone : null
+        );
 
         // Prefer explicit scheduledTime from client, then parse HH:MM from slot id.
         // This avoids UUID parsing issues when med ids include dashes.
@@ -38,6 +57,22 @@ export async function POST(request: NextRequest) {
             if (match?.[1]) {
                 scheduledTime = match[1];
             }
+        }
+
+        // Strict timing enforcement: allow confirmations only within ±30 minutes.
+        const scheduledMinutes = toMinutes(scheduledTime);
+        const windowStart = Math.max(0, scheduledMinutes - DOSE_WINDOW_MINUTES);
+        const windowEnd = Math.min(1439, scheduledMinutes + DOSE_WINDOW_MINUTES);
+        const withinWindow = currentMinutes >= windowStart && currentMinutes <= windowEnd;
+
+        if (!withinWindow) {
+            return NextResponse.json(
+                {
+                    success: false,
+                    error: `Dose can only be marked between ${toDisplayTime(windowStart)} and ${toDisplayTime(windowEnd)}.`,
+                },
+                { status: 409 }
+            );
         }
 
         // Upsert: if a log already exists for this med + time + date, update it
