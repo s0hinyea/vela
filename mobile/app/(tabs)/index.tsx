@@ -116,16 +116,91 @@ export default function NowScreen() {
           </View>
         </View>
 
-        <View style={styles.emptyContainer}>
-          <View style={styles.emptyStateCard}>
-            <Text style={styles.emptyStateEmoji}>✨</Text>
-            <Text style={styles.emptyStateTitle}>Welcome to Vela</Text>
-            <Text style={styles.emptyStateSub}>
-              Tap the button below to scan your first pill bottle or prescription label.
-            </Text>
+        <ScrollView
+          contentContainerStyle={styles.scrollContent}
+          showsVerticalScrollIndicator={false}
+        >
+          {/* Status message */}
+          <View style={styles.caughtUpHeader}>
+            <Text style={styles.caughtUpEmoji}>🌿</Text>
+            <View>
+              <Text style={styles.caughtUpTitle}>All caught up!</Text>
+              <Text style={styles.caughtUpSub}>
+                {upcoming.length > 0
+                  ? `Next medication is later today`
+                  : todaySlots.length > 0
+                  ? "No more medications today"
+                  : "Welcome to Vela"}
+              </Text>
+            </View>
           </View>
         </View>
 
+          {/* Empty state if nothing scheduled at all */}
+          {todaySlots.length === 0 && (
+            <View style={styles.emptyStateCard}>
+              <Text style={styles.emptyStateEmoji}>✨</Text>
+              <Text style={styles.emptyStateTitle}>Your schedule is empty</Text>
+              <Text style={styles.emptyStateSub}>
+                Tap the button below to scan your first pill bottle or prescription label.
+              </Text>
+            </View>
+          )}
+
+          {/* Today's medication list */}
+          {todaySlots.length > 0 && (
+            <View style={styles.progressSection}>
+              <Text style={styles.progressLabel}>Today's medications</Text>
+              {todaySlots.map((slot) => (
+                <View key={slot.id} style={styles.progressRow}>
+                  <View
+                    style={[
+                      styles.statusDot,
+                      slot.status === "taken" && styles.statusDotTaken,
+                      slot.status === "upcoming" && styles.statusDotUpcoming,
+                    ]}
+                  >
+                    {slot.status === "taken" && (
+                      <Text style={styles.statusCheck}>✓</Text>
+                    )}
+                  </View>
+                  <View style={styles.progressInfo}>
+                    <Text
+                      style={[
+                        styles.progressMedName,
+                        slot.status === "taken" && styles.progressMedNameTaken,
+                      ]}
+                    >
+                      {slot.medicationName}
+                    </Text>
+                    <Text style={styles.progressMedDetail}>
+                      {slot.dosage} · {slot.scheduledTimeLabel}
+                    </Text>
+                  </View>
+                  <View
+                    style={[
+                      styles.statusBadge,
+                      slot.status === "taken" && styles.statusBadgeTaken,
+                      slot.status === "upcoming" && styles.statusBadgeUpcoming,
+                    ]}
+                  >
+                    <Text
+                      style={[
+                        styles.statusBadgeText,
+                        slot.status === "taken" && styles.statusBadgeTextTaken,
+                        slot.status === "upcoming" && styles.statusBadgeTextUpcoming,
+                      ]}
+                    >
+                      {slot.status === "taken" ? "Taken" : "Upcoming"}
+                    </Text>
+                  </View>
+                </View>
+              ))}
+            </View>
+          )}
+        </ScrollView>
+
+        {/* Add medication */}
         <Pressable
           style={({ pressed }) => [styles.addButton, pressed && styles.addButtonPressed]}
           onPress={() => router.push("/scan")}
@@ -146,6 +221,7 @@ export default function NowScreen() {
         doseSlotId: currentSlot.id,
         profileId: profile.id,
         medicationId: currentSlot.medicationId,
+        scheduledTime: currentSlot.scheduledTime,
         takenAt: new Date().toISOString(),
       });
       markTaken(currentSlot.id);
@@ -406,12 +482,6 @@ const styles = StyleSheet.create({
     marginTop: 2,
   },
   // Empty State
-  emptyContainer: {
-    flex: 1,
-    justifyContent: "center",
-    alignItems: "center",
-    paddingHorizontal: theme.spacing.lg,
-  },
   emptyStateCard: {
     alignItems: "center",
     justifyContent: "center",

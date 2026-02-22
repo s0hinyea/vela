@@ -3,3 +3,8 @@ CONTRACTS.md
 HACKATHON.md
 
 .env
+mobile/node_modules/
+backend/node_modules/
+backend/.next/
+mobile/.expo/
+*.log

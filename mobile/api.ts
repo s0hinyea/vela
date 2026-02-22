@@ -200,6 +200,7 @@ export async function logDose(payload: {
   doseSlotId: string;
   profileId: string;
   medicationId: string;
+  scheduledTime?: string;
   takenAt: string;
 }): Promise<void> {
   if (DEMO_MODE) return mockDelay(undefined as unknown as void, 300);
@@ -233,7 +234,6 @@ export async function fetchNotificationSchedule(profileId: string): Promise<{
   }>;
 }> {
   if (DEMO_MODE) {
-    // In demo mode, generate a mock notification in 10 seconds
     return mockDelay({
       profileId: MOCK_PROFILE.id,
       seniorName: MOCK_PROFILE.seniorName,
@@ -245,7 +245,7 @@ export async function fetchNotificationSchedule(profileId: string): Promise<{
           scheduledTime: "08:00",
           scheduledTimeLabel: "8:00 AM",
           stage: "heads_up",
-          triggerTime: "07:45",
+          triggerTime: "07:30",
           title: "Coming up: 2 medications at 8:00 AM",
           body: `${MOCK_PROFILE.seniorName}, your Metformin 500mg and Lisinopril 10mg are coming up soon.`,
           audioText: `${MOCK_PROFILE.seniorName}, your Metformin 500mg and Lisinopril 10mg are coming up soon.`,
@@ -271,9 +271,9 @@ export async function fetchNotificationSchedule(profileId: string): Promise<{
           scheduledTime: "08:00",
           scheduledTimeLabel: "8:00 AM",
           stage: "follow_up",
-          triggerTime: "08:30",
+          triggerTime: "08:15",
           title: "Did you take your 8:00 AM medications?",
-          body: `Just checking in — did you take your Metformin 500mg and Lisinopril 10mg?`,
+          body: "Just checking in — did you take your Metformin 500mg and Lisinopril 10mg?",
           audioText: `Just checking in, ${MOCK_PROFILE.seniorName}. Did you take your Metformin 500mg and Lisinopril 10mg?`,
           medications: MOCK_MEDICATIONS.slice(0, 2).map((m) => ({ id: m.id, name: m.name, dosage: m.dosage })),
           allTaken: false,
@@ -282,6 +282,7 @@ export async function fetchNotificationSchedule(profileId: string): Promise<{
       ],
     });
   }
+
   const res = await fetch(
     `${BASE_URL}/api/notifications/schedule?profileId=${profileId}`
   );
@@ -289,4 +290,3 @@ export async function fetchNotificationSchedule(profileId: string): Promise<{
   if (!json.success) throw new Error(json.error);
   return json.data;
 }
-
