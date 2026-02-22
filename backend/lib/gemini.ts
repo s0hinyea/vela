@@ -260,8 +260,18 @@ export async function translateNotificationTexts(
 // 5. Chatbot Reasoning — answers questions about a specific medication
 // ---------------------------------------------------------------------------
 
-const CHAT_SYSTEM_PROMPT = `You are Vela, a practical medication guide for caregivers and seniors.
-You answer only from the medication context below and the user's question.
+export type ChatRiskLevel = "low" | "medium" | "high" | "unknown";
+
+export type ChatbotAnswer = {
+    risk: ChatRiskLevel;
+    directAnswer: string;
+    reason: string;
+    nextStep: string;
+    redFlags: string[];
+};
+
+const CHAT_SYSTEM_PROMPT = `You are Vela, a decisive medication safety assistant for caregivers and seniors.
+You must answer only from medication context and widely known medication guidance.
 
 Medication context:
 - Name: {name}
@@ -272,17 +282,37 @@ Medication context:
 - Instructions: {instructions}
 - Known interactions/warnings: {warnings}
 
-Response rules:
-1) Start directly with the answer. No greeting, no filler, no "Hi there".
-2) Be specific to this medication (mention the medication name at least once).
-3) Give concrete, actionable guidance (timing, food, spacing, what to monitor) when possible.
-4) Use plain language. No jargon. No alarmist language.
-5) Do NOT default to "ask your doctor". Mention doctor/pharmacist only when:
-   - there is a serious red flag, or
-   - the answer is genuinely unknown from context.
-6) If question is unrelated to medication/health, briefly redirect to medication help.
-7) Keep to 2-4 short sentences maximum.
-8) Do not use bullet points or markdown.`;
+Return ONLY valid JSON with exactly this shape:
+{
+  "risk": "low" | "medium" | "high" | "unknown",
+  "directAnswer": "one direct sentence; no greeting, no filler",
+  "reason": "one concrete reason tied to this medication",
+  "nextStep": "one actionable next step",
+  "redFlags": ["short red flag 1", "short red flag 2"] // optional, empty if none
+}
+
+Rules:
+1) Be decisive. No fence-sitting language.
+2) Mention the medication name in directAnswer or reason.
+3) No greetings. No "great question". No fluff.
+4) Do NOT default to doctor/pharmacist advice unless risk is high or answer is unknown.
+5) If question is unrelated to medication use/safety, set risk="unknown" and redirect briefly in nextStep.
+6) Keep each field short and practical.
+7) Return JSON only, no markdown.`;
+
+function normalizeChatSentence(text: string): string {
+    return text
+        .replace(/^(hi|hello|hey)\b[^.!?]*[.!?]\s*/i, "")
+        .replace(/\s+/g, " ")
+        .trim();
+}
+
+function normalizeRisk(value: unknown): ChatRiskLevel {
+    if (value === "low" || value === "medium" || value === "high" || value === "unknown") {
+        return value;
+    }
+    return "unknown";
+}
 
 export async function askChatbot(
     medInfo: {
@@ -295,7 +325,7 @@ export async function askChatbot(
         warnings?: string[];
     },
     question: string
-): Promise<string> {
+): Promise<ChatbotAnswer> {
     const prompt = CHAT_SYSTEM_PROMPT
         .replace("{name}", medInfo.name)
         .replace("{dosage}", medInfo.dosage)
@@ -317,16 +347,50 @@ export async function askChatbot(
                 ] 
             }
         ],
+        config: {
+            temperature: 0.2,
+        },
     });
 
     const raw = response.text?.trim() ?? "";
     if (!raw) {
-        return "I could not process that just now. Please try the question again.";
+        return {
+            risk: "unknown",
+            directAnswer: `I can't confirm safety for ${medInfo.name} right now.`,
+            reason: "No response came back from the model.",
+            nextStep: "Try asking again with the exact symptom or timing concern.",
+            redFlags: [],
+        };
     }
 
-    // Keep tone direct and avoid repetitive greeting openers.
-    const cleaned = raw.replace(/^(hi|hello|hey)\b[^.!?]*[.!?]\s*/i, "").trim();
-    return cleaned || raw;
+    const cleaned = raw.replace(/^```(?:json)?\s*/i, "").replace(/```\s*$/i, "").trim();
+
+    try {
+        const parsed = JSON.parse(cleaned) as Partial<ChatbotAnswer>;
+        const risk = normalizeRisk(parsed.risk);
+        const directAnswer = normalizeChatSentence(parsed.directAnswer || "");
+        const reason = normalizeChatSentence(parsed.reason || "");
+        const nextStep = normalizeChatSentence(parsed.nextStep || "");
+        const redFlags = Array.isArray(parsed.redFlags)
+            ? parsed.redFlags.map((x) => normalizeChatSentence(String(x))).filter(Boolean)
+            : [];
+
+        return {
+            risk,
+            directAnswer: directAnswer || `For ${medInfo.name}, I need one more detail before I can be precise.`,
+            reason: reason || `${medInfo.name} safety depends on your symptoms, timing, and other medicines.`,
+            nextStep: nextStep || "Tell me what happened and when you took the dose.",
+            redFlags,
+        };
+    } catch {
+        return {
+            risk: "unknown",
+            directAnswer: normalizeChatSentence(raw) || `I can't confirm safety for ${medInfo.name} from that response.`,
+            reason: `${medInfo.name} needs clearer context to avoid a vague answer.`,
+            nextStep: "Ask one specific question like dose timing, food, or side effects.",
+            redFlags: [],
+        };
+    }
 }
 
 // ---------------------------------------------------------------------------

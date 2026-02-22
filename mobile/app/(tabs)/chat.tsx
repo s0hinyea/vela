@@ -16,7 +16,7 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import { theme } from "../../theme";
 import { useVelaStore } from "../../store/useVelaStore";
-import { askVelaChat } from "../../api";
+import { askVelaChat, resetVelaChatLimit } from "../../api";
 import type { Medication } from "../../types";
 import { VelaAvatar } from "../../components/VelaAvatar";
 
@@ -30,6 +30,7 @@ type Message = {
   sender: "user" | "vela";
   text: string;
   timestamp: Date;
+  risk?: "low" | "medium" | "high" | "unknown";
 };
 
 function MedicationAvatar() {
@@ -52,6 +53,9 @@ export default function ChatScreen() {
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
   const [remaining, setRemaining] = useState(3);
+  const [resettingLimit, setResettingLimit] = useState(false);
+  const logoTapCountRef = useRef(0);
+  const logoTapTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Animations
   const floatingAnim = useRef(new Animated.Value(0)).current;
@@ -73,6 +77,15 @@ export default function ChatScreen() {
     );
     animation.start();
     return () => animation.stop();
+  }, []);
+
+  useEffect(() => {
+    return () => {
+      if (logoTapTimerRef.current) {
+        clearTimeout(logoTapTimerRef.current);
+        logoTapTimerRef.current = null;
+      }
+    };
   }, []);
 
   const floatY = floatingAnim.interpolate({
@@ -122,6 +135,7 @@ export default function ChatScreen() {
         sender: "vela",
         text: result.answer,
         timestamp: new Date(),
+        risk: result.risk,
       };
 
       setMessages((prev) => [...prev, velaMessage]);
@@ -147,6 +161,59 @@ export default function ChatScreen() {
     }
   };
 
+  const handleHiddenResetLimit = async () => {
+    if (!profile || resettingLimit) return;
+
+    const uiResetId = `reset-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`;
+    setResettingLimit(true);
+    console.log(`[ChatUI:${uiResetId}] hidden reset trigger pressed`);
+
+    try {
+      const result = await resetVelaChatLimit(profile.id);
+      setRemaining(result.remaining);
+
+      if (selectedMed) {
+        const resetMessage: Message = {
+          id: (Date.now() + 2).toString(),
+          sender: "vela",
+          text: "Demo reset complete. You now have 3 questions again for today.",
+          timestamp: new Date(),
+        };
+        setMessages((prev) => [...prev, resetMessage]);
+      }
+
+      console.log(
+        `[ChatUI:${uiResetId}] hidden reset success deleted=${result.deleted} remaining=${result.remaining}`
+      );
+    } catch (e) {
+      console.error(`[ChatUI:${uiResetId}] hidden reset failed:`, e);
+    } finally {
+      setResettingLimit(false);
+    }
+  };
+
+  const handleHiddenLogoPress = () => {
+    logoTapCountRef.current += 1;
+
+    if (logoTapTimerRef.current) {
+      clearTimeout(logoTapTimerRef.current);
+    }
+
+    logoTapTimerRef.current = setTimeout(() => {
+      logoTapCountRef.current = 0;
+      logoTapTimerRef.current = null;
+    }, 1200);
+
+    if (logoTapCountRef.current >= 5) {
+      logoTapCountRef.current = 0;
+      if (logoTapTimerRef.current) {
+        clearTimeout(logoTapTimerRef.current);
+        logoTapTimerRef.current = null;
+      }
+      void handleHiddenResetLimit();
+    }
+  };
+
   const resetSelection = () => {
     LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
     setSelectedMed(null);
@@ -157,9 +224,11 @@ export default function ChatScreen() {
     return (
       <SafeAreaView style={styles.container}>
         <View style={styles.selectionHeader}>
-          <Animated.View style={{ transform: [{ translateY: floatY }] }}>
-            <VelaAvatar />
-          </Animated.View>
+          <Pressable onPress={handleHiddenLogoPress}>
+            <Animated.View style={{ transform: [{ translateY: floatY }] }}>
+              <VelaAvatar />
+            </Animated.View>
+          </Pressable>
           <Text style={styles.title}>Ask Vela</Text>
           <Text style={styles.subtitle}>Select a medication to discuss</Text>
         </View>
@@ -221,9 +290,11 @@ export default function ChatScreen() {
           ref={(ref) => ref?.scrollToEnd({ animated: true })}
         >
           <View style={styles.avatarContainer}>
-            <Animated.View style={{ transform: [{ translateY: floatY }] }}>
-              <VelaAvatar />
-            </Animated.View>
+            <Pressable onPress={handleHiddenLogoPress}>
+              <Animated.View style={{ transform: [{ translateY: floatY }] }}>
+                <VelaAvatar />
+              </Animated.View>
+            </Pressable>
           </View>
 
           {messages.map((msg) => (
@@ -238,6 +309,20 @@ export default function ChatScreen() {
                 styles.bubble,
                 msg.sender === "user" ? styles.userBubble : styles.velaBubble
               ]}>
+                {msg.sender === "vela" && msg.risk ? (
+                  <View style={[
+                    styles.riskBadge,
+                    msg.risk === "low"
+                      ? styles.riskLow
+                      : msg.risk === "medium"
+                      ? styles.riskMedium
+                      : msg.risk === "high"
+                      ? styles.riskHigh
+                      : styles.riskUnknown
+                  ]}>
+                    <Text style={styles.riskBadgeText}>Risk: {msg.risk.toUpperCase()}</Text>
+                  </View>
+                ) : null}
                 <Text style={[
                   styles.messageText,
                   msg.sender === "user" ? styles.userText : styles.velaText
@@ -464,6 +549,31 @@ const styles = StyleSheet.create({
     fontFamily: theme.fonts.medium,
     fontSize: 16,
     lineHeight: 22,
+  },
+  riskBadge: {
+    alignSelf: "flex-start",
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 8,
+    marginBottom: 8,
+  },
+  riskLow: {
+    backgroundColor: "#E7F6EC",
+  },
+  riskMedium: {
+    backgroundColor: "#FFF4DD",
+  },
+  riskHigh: {
+    backgroundColor: "#FCE8E8",
+  },
+  riskUnknown: {
+    backgroundColor: theme.colors.borderLight,
+  },
+  riskBadgeText: {
+    fontFamily: theme.fonts.semiBold,
+    fontSize: 11,
+    color: theme.colors.primary,
+    letterSpacing: 0.2,
   },
   userText: {
     color: theme.colors.textOnPrimary,

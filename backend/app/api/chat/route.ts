@@ -117,8 +117,26 @@ export async function POST(request: NextRequest) {
         };
 
         const llmStart = Date.now();
-        const answer = await askChatbot(medInfo, questionText);
+        const llmAnswer = await askChatbot(medInfo, questionText);
+        const riskLabelMap: Record<typeof llmAnswer.risk, string> = {
+            low: "Low",
+            medium: "Medium",
+            high: "High",
+            unknown: "Unknown",
+        };
+        const redFlagsSentence = llmAnswer.redFlags.length
+            ? `Watch for: ${llmAnswer.redFlags.join(", ")}.`
+            : "";
+        const answer = [
+            `Risk level: ${riskLabelMap[llmAnswer.risk]}.`,
+            llmAnswer.directAnswer,
+            llmAnswer.reason,
+            llmAnswer.nextStep,
+            redFlagsSentence,
+        ].filter(Boolean).join(" ");
         log("gemini response received", {
+            risk: llmAnswer.risk,
+            redFlags: llmAnswer.redFlags.length,
             answerLength: answer.length,
             llmElapsedMs: Date.now() - llmStart,
         });
@@ -147,6 +165,7 @@ export async function POST(request: NextRequest) {
                 answer,
                 // If rate-limit lookup failed, keep chat available and avoid blocking the experience.
                 remaining: dailyCount === null ? 3 : Math.max(0, 3 - dailyCount - 1),
+                risk: llmAnswer.risk,
                 requestId,
             }
         });
