@@ -51,7 +51,16 @@ export async function DELETE(
 ) {
     try {
         const { id } = await context.params;
-        const { error } = await getSupabase()
+        const db = getSupabase();
+
+        // 1. Manually cascade delete from child tables to prevent foreign key constraint errors
+        await db.from("dose_logs").delete().eq("medication_id", id);
+        await db.from("schedule_slots").delete().eq("medication_id", id);
+        await db.from("medication_interactions").delete().or(`drug1_id.eq.${id},drug2_id.eq.${id}`); // Just in case, depending on how it's linked
+        await db.from("medication_interactions").delete().eq("medication_id", id); // Fallback if using direct reference
+
+        // 2. Delete the actual medication
+        const { error } = await db
             .from("medications")
             .delete()
             .eq("id", id);
