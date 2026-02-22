@@ -1,8 +1,8 @@
-import { Stack, useRouter, useSegments } from "expo-router";
+import { Stack, usePathname, useRootNavigationState, useRouter } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import { SafeAreaProvider } from "react-native-safe-area-context";
-import { ActivityIndicator, View, Text, DeviceEventEmitter } from "react-native";
-import { useEffect, useState } from "react";
+import { View, DeviceEventEmitter, Animated, Easing } from "react-native";
+import { useEffect, useRef, useState } from "react";
 import {
   useFonts,
   Inter_400Regular,
@@ -30,35 +30,40 @@ export default function RootLayout() {
   const { user, loading: authLoading } = useAuth();
   const [profileLoaded, setProfileLoaded] = useState(false);
   const [hasSeniorConfigured, setHasSeniorConfigured] = useState(false);
-  const [hasRoutedInitialGreeting, setHasRoutedInitialGreeting] = useState(false);
+  const [splashElapsed, setSplashElapsed] = useState(false);
+  const spin = useRef(new Animated.Value(0)).current;
+  const profileLoadRunId = useRef(0);
+  const hasCompletedInitialRoute = useRef(false);
+  const lastInitialTarget = useRef<string | null>(null);
   const router = useRouter();
-  const segments = useSegments();
+  const pathname = usePathname();
+  const navState = useRootNavigationState();
   const { scheduleAll } = useNotifications();
 
   // Check profile state when user changes
   useEffect(() => {
-    // 1. Unauthenticated: Clear memory, reset profile loading
-    if (!user) {
-      useVelaStore.getState().reset();
-      setHasSeniorConfigured(false);
-      setProfileLoaded(true);
-      return;
-    }
+    let cancelled = false;
 
-    // 2. Lock down routing, wait for all data fetches to pass
-    setProfileLoaded(false);
+    async function initProfile(quiet = false) {
+      const runId = ++profileLoadRunId.current;
+      if (!quiet) setProfileLoaded(false);
 
-    async function initProfile() {
       try {
+        const userId = user?.id;
+        if (!userId) return;
+
         if (DEMO_MODE) {
           const { fetchProfile } = await import("../api");
           const { MOCK_PROFILE } = await import("../mocks");
           const p = await fetchProfile(MOCK_PROFILE.id);
+          if (cancelled || runId !== profileLoadRunId.current) return;
           const { setProfile, setMedications, setSchedule } = useVelaStore.getState();
           setProfile(p);
           const meds = await fetchMedications(p.id);
+          if (cancelled || runId !== profileLoadRunId.current) return;
           setMedications(meds);
           const schedule = await fetchTodaySchedule(p.id);
+          if (cancelled || runId !== profileLoadRunId.current) return;
           setSchedule(schedule.slots, schedule.allTaken);
           setHasSeniorConfigured(true);
           return;
@@ -68,15 +73,15 @@ export default function RootLayout() {
         const { data, error } = await supabase
           .from("profiles")
           .select("*")
-          .eq("id", user!.id)
+          .eq("id", userId)
           .single();
+
+        if (cancelled || runId !== profileLoadRunId.current) return;
 
         if (error || !data || !data.senior_name) {
           setHasSeniorConfigured(false);
         } else {
-          // Fully populate store globally before rendering
           const { setProfile, setMedications, setSchedule } = useVelaStore.getState();
-          
           setProfile({
             id: data.id,
             seniorName: data.senior_name,
@@ -85,42 +90,67 @@ export default function RootLayout() {
             createdAt: data.created_at,
           });
 
-          // Pre-fetch everything else
-          try {
-            const meds = await fetchMedications(data.id);
-            setMedications(meds);
-          } catch (e) {
-            console.error("Layout: Failed to load medications", e);
-          }
-
-          try {
-            const schedule = await fetchTodaySchedule(data.id);
-            setSchedule(schedule.slots, schedule.allTaken);
-          } catch (e) {
-            console.error("Layout: Failed to load schedule", e);
-          }
-
           setHasSeniorConfigured(true);
+          fetchMedications(data.id)
+            .then((meds) => setMedications(meds))
+            .catch((e) => console.error("Layout: Failed to load medications", e));
+
+          fetchTodaySchedule(data.id)
+            .then((schedule) => setSchedule(schedule.slots, schedule.allTaken))
+            .catch((e) => console.error("Layout: Failed to load schedule", e));
         }
       } catch (err) {
+        if (cancelled || runId !== profileLoadRunId.current) return;
         console.error("Failed to initialize profile:", err);
         setHasSeniorConfigured(false);
       } finally {
-        // Unlock router
+        if (cancelled || runId !== profileLoadRunId.current) return;
         setProfileLoaded(true);
       }
     }
 
-    initProfile();
+    if (!user) {
+      profileLoadRunId.current += 1;
+      useVelaStore.getState().reset();
+      setHasSeniorConfigured(false);
+      setProfileLoaded(true);
+      return;
+    }
+
+    void initProfile();
 
     const sub = DeviceEventEmitter.addListener("seniorNameConfigured", () => {
-      // Intentionally skipping setProfileLoaded(false) here so we don't unmount the navigator
-      // and cause a "flash" of the loading screen. We fetch quietly.
-      initProfile();
+      void initProfile(true);
     });
 
-    return () => sub.remove();
-  }, [user]);
+    return () => {
+      cancelled = true;
+      sub.remove();
+    };
+  }, [user?.id]);
+
+  useEffect(() => {
+    const timer = setTimeout(() => setSplashElapsed(true), 1500);
+    return () => clearTimeout(timer);
+  }, []);
+
+  useEffect(() => {
+    const loop = Animated.loop(
+      Animated.timing(spin, {
+        toValue: 1,
+        duration: 1600,
+        easing: Easing.linear,
+        useNativeDriver: true,
+        isInteraction: false,
+      })
+    );
+    loop.start();
+    return () => {
+      loop.stop();
+      spin.stopAnimation();
+      spin.setValue(0);
+    };
+  }, [spin]);
 
   // Schedule notifications when user is authenticated
   useEffect(() => {
@@ -129,92 +159,169 @@ export default function RootLayout() {
     }
   }, [user, hasSeniorConfigured, scheduleAll]);
 
-  // Route protection: redirect based on auth + profile state
+  const authResolved = !authLoading;
+  const profileResolved = !user || profileLoaded;
+  const startupReady = fontsLoaded && authResolved && profileResolved;
+  const canRoute = startupReady && splashElapsed && !!navState?.key;
+  const initialTarget = !user ? "/welcome" : !hasSeniorConfigured ? "/onboarding" : "/greeting";
+
   useEffect(() => {
-    // 1. Wait until everything is fully loaded AND segments are available
-    if (authLoading || !fontsLoaded || !profileLoaded || !segments.length) return;
-
-    // 2. Demo mode skips auth + onboarding entirely
-    if (DEMO_MODE) return;
-
-    const inAuthGroup = segments[0] === "welcome" || segments[0] === "signup" || segments[0] === "signin";
-    const inOnboardingGroup = segments[0] === "onboarding";
-
-    if (!user) {
-      // Not signed in -> Must be in auth group
-      if (!inAuthGroup) {
-        setTimeout(() => router.replace("/welcome"), 1);
-      }
-    } else {
-      // Signed in
-      if (!hasSeniorConfigured) {
-        // Needs to configure senior -> Must be in onboarding
-        if (!inOnboardingGroup) {
-          setTimeout(() => router.replace("/onboarding"), 1);
-        }
-      } else {
-        // Has a configured senior
-        if (!hasRoutedInitialGreeting) {
-          // Always show greeting on first launch even if deep-linked
-          setHasRoutedInitialGreeting(true);
-          setTimeout(() => router.replace("/greeting"), 1);
-        } else if (inAuthGroup || inOnboardingGroup) {
-          // They explicitly shouldn't be here, redirect back to greeting
-          setTimeout(() => router.replace("/greeting"), 1);
-        }
-      }
+    if (lastInitialTarget.current !== initialTarget) {
+      hasCompletedInitialRoute.current = false;
+      lastInitialTarget.current = initialTarget;
     }
-  }, [user, authLoading, fontsLoaded, profileLoaded, hasSeniorConfigured, segments, hasRoutedInitialGreeting]);
+  }, [initialTarget]);
 
-  // Only render the router if we are absolutely sure about the auth state AND the profile state
-  // to prevent the UI flashing "Welcome -> Onboarding -> Greeting" rapidly on app launch.
-  const isReadyForRouting = fontsLoaded && !authLoading && profileLoaded;
+  // Startup + guard routing with deterministic target selection.
+  useEffect(() => {
+    if (!canRoute || DEMO_MODE || !pathname) return;
 
-  if (!isReadyForRouting) {
-    return (
-      <View
-        style={{
-          flex: 1,
-          justifyContent: "center",
-          alignItems: "center",
-          backgroundColor: theme.colors.background,
-        }}
-      >
-        <Text
-          style={{
-            fontFamily: "System",
-            fontSize: 28,
-            fontWeight: "700",
-            color: theme.colors.accent,
-            letterSpacing: 2,
-            marginBottom: 16,
-          }}
-        >
-          Vela
-        </Text>
-        <ActivityIndicator size="small" color={theme.colors.accent} />
-      </View>
-    );
-  }
+    const inAuthGroup = pathname === "/welcome" || pathname === "/signin" || pathname === "/signup";
+    const inOnboardingGroup = pathname === "/onboarding";
+
+    if (!hasCompletedInitialRoute.current) {
+      if (pathname !== initialTarget) {
+        router.replace(initialTarget);
+        return;
+      }
+      hasCompletedInitialRoute.current = true;
+      return;
+    }
+
+    if (!user && !inAuthGroup) {
+      router.replace("/welcome");
+      return;
+    }
+
+    if (user && !hasSeniorConfigured && !inOnboardingGroup) {
+      router.replace("/onboarding");
+    }
+  }, [
+    canRoute,
+    pathname,
+    initialTarget,
+    user,
+    hasSeniorConfigured,
+    router,
+  ]);
+
+  const showSplash = !startupReady || !splashElapsed;
+
+  const rotate = spin.interpolate({
+    inputRange: [0, 1],
+    outputRange: ["0deg", "360deg"],
+  });
 
   return (
     <SafeAreaProvider>
       <StatusBar style="dark" backgroundColor={theme.colors.background} />
-      <Stack
-        screenOptions={{
-          headerShown: false,
-          contentStyle: { backgroundColor: theme.colors.background },
-          animation: "fade",
-        }}
-      >
-        <Stack.Screen
-          name="edit-medication"
-          options={{
-            presentation: "modal",
-            animation: "slide_from_bottom",
+      <View style={{ flex: 1 }}>
+        <Stack
+          screenOptions={{
+            headerShown: false,
+            contentStyle: { backgroundColor: theme.colors.background },
+            animation: "fade",
           }}
-        />
-      </Stack>
+        >
+          <Stack.Screen
+            name="edit-medication"
+            options={{
+              presentation: "modal",
+              animation: "slide_from_bottom",
+            }}
+          />
+        </Stack>
+
+        {showSplash ? (
+          <View
+            style={{
+              position: "absolute",
+              top: 0,
+              right: 0,
+              bottom: 0,
+              left: 0,
+              justifyContent: "center",
+              alignItems: "center",
+              backgroundColor: theme.colors.background,
+            }}
+            pointerEvents="none"
+          >
+            <View
+              style={{
+                width: 110,
+                height: 110,
+                alignItems: "center",
+                justifyContent: "center",
+              }}
+            >
+              <Animated.View
+                style={{
+                  width: 84,
+                  height: 84,
+                  borderRadius: 42,
+                  backgroundColor: theme.colors.surface,
+                  borderWidth: 2,
+                  borderColor: theme.colors.accentLight,
+                  alignItems: "center",
+                  justifyContent: "center",
+                  ...theme.shadows.card,
+                  transform: [{ rotate }],
+                }}
+              >
+                <View
+                  style={{
+                    width: 30,
+                    height: 34,
+                    borderTopLeftRadius: 18,
+                    borderTopRightRadius: 18,
+                    borderBottomLeftRadius: 18,
+                    borderBottomRightRadius: 8,
+                    backgroundColor: theme.colors.accent,
+                    transform: [{ rotate: "8deg" }],
+                  }}
+                >
+                  <View
+                    style={{
+                      width: 12,
+                      height: 13,
+                      borderRadius: 7,
+                      backgroundColor: theme.colors.surface,
+                      position: "absolute",
+                      top: 12,
+                      left: 9,
+                    }}
+                  />
+                </View>
+                <View
+                  style={{
+                    position: "absolute",
+                    top: 38,
+                    flexDirection: "row",
+                    gap: 4,
+                  }}
+                >
+                  <View
+                    style={{
+                      width: 4,
+                      height: 4,
+                      borderRadius: 2,
+                      backgroundColor: theme.colors.primary,
+                    }}
+                  />
+                  <View
+                    style={{
+                      width: 4,
+                      height: 4,
+                      borderRadius: 2,
+                      backgroundColor: theme.colors.primary,
+                    }}
+                  />
+                </View>
+              </Animated.View>
+            </View>
+          </View>
+        ) : null}
+      </View>
     </SafeAreaProvider>
   );
 }
