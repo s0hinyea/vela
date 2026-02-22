@@ -20,17 +20,17 @@ import { theme } from "../../theme";
 import { useVelaStore } from "../../store/useVelaStore";
 import { useVoicePlayer } from "../../hooks/useVoicePlayer";
 import { useNotifications } from "../../hooks/useNotifications";
-import { useAuth } from "../../hooks/useAuth";
 import { MOCK_PROFILE, DEMO_MODE } from "../../mocks";
 import { logDose, fetchMedications, fetchTodaySchedule } from "../../api";
 import { useT } from "../../i18n";
+import { PulsingVelaOverlay } from "../../components/PulsingVelaOverlay";
 
 export default function NowScreen() {
   const router = useRouter();
   const { currentSlot, todaySlots, allTaken, markTaken, profile, forceDue, setSchedule, setMedications } = useVelaStore();
   const [logging, setLogging] = useState(false);
   const { play, stop, isPlaying } = useVoicePlayer();
-  const { simulateNextReminder } = useNotifications();
+  const { simulateNextReminder } = useNotifications(play);
   const t = useT();
 
   // Real-time clock for the front page
@@ -281,6 +281,8 @@ export default function NowScreen() {
 
   return (
     <SafeAreaView style={styles.container}>
+      <PulsingVelaOverlay isPulsing={isPlaying} />
+
       {/* Header */}
       <View style={styles.header}>
         <View style={styles.headerTitleRow}>

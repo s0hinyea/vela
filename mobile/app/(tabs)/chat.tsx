@@ -18,6 +18,7 @@ import { theme } from "../../theme";
 import { useVelaStore } from "../../store/useVelaStore";
 import { askVelaChat } from "../../api";
 import type { Medication } from "../../types";
+import { VelaAvatar } from "../../components/VelaAvatar";
 
 // Enable LayoutAnimation for Android
 if (Platform.OS === "android" && UIManager.setLayoutAnimationEnabledExperimental) {
@@ -42,23 +43,10 @@ function MedicationAvatar() {
   );
 }
 
-function VelaAvatar() {
-  return (
-    <View style={styles.velaAvatarWrap}>
-      <View style={styles.velaFlame}>
-        <View style={styles.velaFlameCore} />
-      </View>
-      <View style={styles.velaFace}>
-        <View style={styles.velaEye} />
-        <View style={styles.velaEye} />
-      </View>
-    </View>
-  );
-}
 
 export default function ChatScreen() {
   const { profile, medications } = useVelaStore();
-  
+
   const [selectedMed, setSelectedMed] = useState<Medication | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
@@ -128,7 +116,7 @@ export default function ChatScreen() {
 
     try {
       const result = await askVelaChat(profile.id, selectedMed.id, question);
-      
+
       const velaMessage: Message = {
         id: (Date.now() + 1).toString(),
         sender: "vela",
@@ -209,8 +197,8 @@ export default function ChatScreen() {
 
   return (
     <SafeAreaView style={styles.container}>
-      <KeyboardAvoidingView 
-        behavior={Platform.OS === "ios" ? "padding" : "height"} 
+      <KeyboardAvoidingView
+        behavior={Platform.OS === "ios" ? "padding" : "height"}
         style={{ flex: 1 }}
         keyboardVerticalOffset={Platform.OS === "ios" ? 0 : 20}
       >
@@ -227,7 +215,7 @@ export default function ChatScreen() {
           <View style={{ width: 60 }} />
         </View>
 
-        <ScrollView 
+        <ScrollView
           style={styles.chatList}
           contentContainerStyle={{ paddingBottom: 20 }}
           ref={(ref) => ref?.scrollToEnd({ animated: true })}
@@ -239,8 +227,8 @@ export default function ChatScreen() {
           </View>
 
           {messages.map((msg) => (
-            <View 
-              key={msg.id} 
+            <View
+              key={msg.id}
               style={[
                 styles.messageRow,
                 msg.sender === "user" ? styles.userRow : styles.velaRow
@@ -277,7 +265,7 @@ export default function ChatScreen() {
             multiline
             maxLength={200}
           />
-          <Pressable 
+          <Pressable
             onPress={handleSend}
             disabled={!input.trim() || loading || remaining <= 0}
             style={[
@@ -406,7 +394,7 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     paddingHorizontal: theme.spacing.md,
     paddingBottom: 12,
-    borderBottomWidth:1,
+    borderBottomWidth: 1,
     borderBottomColor: theme.colors.borderLight,
   },
   backBtn: {
@@ -446,48 +434,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     marginVertical: 20,
   },
-  velaAvatarWrap: {
-    width: 90,
-    height: 90,
-    borderRadius: 45,
-    backgroundColor: theme.colors.surface,
-    alignItems: "center",
-    justifyContent: "center",
-    ...theme.shadows.card,
-    borderWidth: 2,
-    borderColor: theme.colors.accentLight,
-  },
-  velaFlame: {
-    width: 34,
-    height: 40,
-    borderTopLeftRadius: 22,
-    borderTopRightRadius: 22,
-    borderBottomLeftRadius: 22,
-    borderBottomRightRadius: 10,
-    backgroundColor: theme.colors.accent,
-    transform: [{ rotate: "8deg" }],
-  },
-  velaFlameCore: {
-    width: 13,
-    height: 15,
-    borderRadius: 9,
-    backgroundColor: theme.colors.surface,
-    position: "absolute",
-    top: 14,
-    left: 10,
-  },
-  velaFace: {
-    position: "absolute",
-    top: 42,
-    flexDirection: "row",
-    gap: 4,
-  },
-  velaEye: {
-    width: 5,
-    height: 5,
-    borderRadius: 3,
-    backgroundColor: theme.colors.primary,
-  },
+
   messageRow: {
     marginVertical: 4,
     maxWidth: "85%",

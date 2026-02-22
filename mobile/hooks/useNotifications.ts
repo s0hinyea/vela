@@ -14,7 +14,7 @@ Notifications.setNotificationHandler({
   }),
 });
 
-export function useNotifications() {
+export function useNotifications(play?: (opts: { audioUrl: string | null; fallbackText: string; language?: string }) => void) {
   const router = useRouter();
   const responseListener = useRef<Notifications.Subscription | null>(null);
   const forceDue = useVelaStore((s) => s.forceDue);
@@ -34,6 +34,14 @@ export function useNotifications() {
         const data = response.notification.request.content.data;
         if (data?.screen === "now") {
           forceDue();
+
+          if (play && data.audioUrl) {
+            play({
+              audioUrl: (data.audioUrl as string) || null,
+              fallbackText: (data.audioText as string) || "It is time for your medication.",
+            });
+          }
+
           router.push("/(tabs)");
         }
       });
@@ -43,7 +51,7 @@ export function useNotifications() {
         responseListener.current.remove();
       }
     };
-  }, [router, forceDue]);
+  }, [router, forceDue, play]);
 
   const scheduleAll = useCallback(async (profileId: string) => {
     try {
@@ -76,6 +84,8 @@ export function useNotifications() {
               stage: notif.stage,
               scheduledTime: notif.scheduledTime,
               medications: notif.medications,
+              audioUrl: (notif as any).audioUrl,
+              audioText: (notif as any).audioText,
             },
           },
           trigger: {
@@ -110,6 +120,8 @@ export function useNotifications() {
             stage: notif.stage,
             scheduledTime: notif.scheduledTime,
             medications: notif.medications,
+            audioUrl: (notif as any).audioUrl,
+            audioText: (notif as any).audioText,
           },
         },
         trigger: {
