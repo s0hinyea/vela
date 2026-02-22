@@ -22,6 +22,7 @@ import { useNotifications } from "../../hooks/useNotifications";
 import { useAuth } from "../../hooks/useAuth";
 import { MOCK_PROFILE, DEMO_MODE } from "../../mocks";
 import { logDose, fetchMedications, fetchTodaySchedule } from "../../api";
+import { useT } from "../../i18n";
 
 export default function NowScreen() {
   const router = useRouter();
@@ -29,6 +30,7 @@ export default function NowScreen() {
   const [logging, setLogging] = useState(false);
   const { play, stop, isPlaying } = useVoicePlayer();
   const { simulateNextReminder } = useNotifications();
+  const t = useT();
 
   // Real-time clock for the front page
   const [now, setNow] = useState(new Date());
@@ -86,19 +88,19 @@ export default function NowScreen() {
         <View style={{ flex: 1, justifyContent: "center", paddingHorizontal: theme.spacing.xl }}>
           <View style={styles.emptyStateCard}>
             <Text style={styles.emptyStateEmoji}>🌙</Text>
-            <Text style={styles.emptyStateTitle}>All done for today</Text>
+            <Text style={styles.emptyStateTitle}>{t.allDoneForToday}</Text>
             <Text style={styles.emptyStateSub}>
-              Great job, Martha. You've taken all your medications. Get some rest.
+              {t.greatJobAllMeds}
             </Text>
           </View>
         </View>
 
         <View style={{ paddingHorizontal: theme.spacing.xl, marginBottom: 40 }}>
-           <Pressable
+          <Pressable
             style={({ pressed }) => [styles.addButton, pressed && styles.addButtonPressed, { backgroundColor: theme.colors.surface, borderWidth: 2, borderColor: theme.colors.border }]}
             onPress={() => router.push("/scan")}
           >
-            <Text style={[styles.addButtonText, { color: theme.colors.textPrimary }]}>+ Add a new medication</Text>
+            <Text style={[styles.addButtonText, { color: theme.colors.textPrimary }]}>{t.addNewMedication}</Text>
           </Pressable>
         </View>
       </SafeAreaView>
@@ -130,13 +132,13 @@ export default function NowScreen() {
           <View style={styles.caughtUpHeader}>
             <Text style={styles.caughtUpEmoji}>🌿</Text>
             <View>
-              <Text style={styles.caughtUpTitle}>All caught up!</Text>
+              <Text style={styles.caughtUpTitle}>{t.allCaughtUp}</Text>
               <Text style={styles.caughtUpSub}>
                 {upcoming.length > 0
-                  ? `Next medication is later today`
+                  ? t.nextMedLater
                   : todaySlots.length > 0
-                  ? "No more medications today"
-                  : "Welcome to Vela"}
+                    ? t.noMoreMedsToday
+                    : t.welcomeToVela}
               </Text>
             </View>
           </View>
@@ -145,9 +147,9 @@ export default function NowScreen() {
           {todaySlots.length === 0 && (
             <View style={styles.emptyStateCard}>
               <Text style={styles.emptyStateEmoji}>✨</Text>
-              <Text style={styles.emptyStateTitle}>Your schedule is empty</Text>
+              <Text style={styles.emptyStateTitle}>{t.scheduleEmpty}</Text>
               <Text style={styles.emptyStateSub}>
-                Tap the button below to scan your first pill bottle or prescription label.
+                {t.scanFirstBottle}
               </Text>
             </View>
           )}
@@ -155,7 +157,7 @@ export default function NowScreen() {
           {/* Today's medication list */}
           {todaySlots.length > 0 && (
             <View style={styles.progressSection}>
-              <Text style={styles.progressLabel}>Today's medications</Text>
+              <Text style={styles.progressLabel}>{t.todaysMeds}</Text>
               {todaySlots.map((slot) => (
                 <View key={slot.id} style={styles.progressRow}>
                   <View
@@ -196,7 +198,7 @@ export default function NowScreen() {
                         slot.status === "upcoming" && styles.statusBadgeTextUpcoming,
                       ]}
                     >
-                      {slot.status === "taken" ? "Taken" : "Upcoming"}
+                      {slot.status === "taken" ? t.taken : t.upcoming}
                     </Text>
                   </View>
                 </View>
@@ -212,7 +214,7 @@ export default function NowScreen() {
           accessibilityRole="button"
           accessibilityLabel="Add a new medication"
         >
-          <Text style={styles.addButtonText}>+ Add medication</Text>
+          <Text style={styles.addButtonText}>{t.addMedication}</Text>
         </Pressable>
 
         {/* Demo: simulate reminder */}
@@ -246,9 +248,9 @@ export default function NowScreen() {
       const remaining = todaySlots.filter(
         (s) => s.status === "due" || s.status === "upcoming"
       ).length;
-      
+
       if (remaining === 1) { // 1 before we mark it taken, meaning 0 after
-         router.push("/done");
+        router.push("/done");
       }
     } catch (e) {
       console.error("Failed to log dose", e);
@@ -271,7 +273,7 @@ export default function NowScreen() {
             <Text style={styles.headerTitle}>Vela</Text>
           </Pressable>
           <View style={styles.pillCounter}>
-            <Text style={styles.pillCounterText}>{todaySlots.length} meds today</Text>
+            <Text style={styles.pillCounterText}>{todaySlots.length} {t.medsToday}</Text>
           </View>
         </View>
         <View style={styles.headerDateRow}>
@@ -340,7 +342,7 @@ export default function NowScreen() {
               <ActivityIndicator color={theme.colors.textOnPrimary} />
             ) : (
               <>
-                <Text style={styles.takenButtonText}>I took it</Text>
+                <Text style={styles.takenButtonText}>{t.iTookIt}</Text>
                 <Text style={styles.takenCheck}>✓</Text>
               </>
             )}
@@ -372,7 +374,7 @@ export default function NowScreen() {
           >
             <Text style={styles.voiceButtonIcon}>{isPlaying ? "⏹" : "🔊"}</Text>
             <Text style={styles.voiceButtonText}>
-              {isPlaying ? "Stop" : "Hear reminder"}
+              {isPlaying ? t.stop : t.hearReminder}
             </Text>
           </Pressable>
         </View>
@@ -411,7 +413,7 @@ export default function NowScreen() {
         accessibilityRole="button"
         accessibilityLabel="Add a new medication"
       >
-        <Text style={styles.addButtonText}>+ Add medication</Text>
+        <Text style={styles.addButtonText}>{t.addMedication}</Text>
       </Pressable>
 
       {/* Demo: simulate reminder */}

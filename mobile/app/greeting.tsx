@@ -16,6 +16,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { theme } from "../theme";
 import { useVelaStore } from "../store/useVelaStore";
 import { useAuth } from "../hooks/useAuth";
+import { useT } from "../i18n";
 
 function getTimeOfDay(): string {
   const hour = new Date().getHours();
@@ -28,6 +29,7 @@ export default function GreetingScreen() {
   const router = useRouter();
   const { profile } = useVelaStore();
   const { signOut } = useAuth();
+  const t = useT();
 
   // Staggered fade-in animations
   const fadeGreeting = useRef(new Animated.Value(0)).current;
@@ -71,7 +73,7 @@ export default function GreetingScreen() {
         {/* Center — greeting */}
         <View style={styles.greetingBlock}>
           <Animated.Text style={[styles.timeLabel, { opacity: fadeGreeting }]}>
-            Good {timeOfDay}
+            {timeOfDay === "morning" ? t.goodMorning : timeOfDay === "afternoon" ? t.goodAfternoon : t.goodEvening}
           </Animated.Text>
           <Animated.Text
             style={[
@@ -83,7 +85,7 @@ export default function GreetingScreen() {
           </Animated.Text>
           <Animated.View style={[styles.divider, { opacity: fadeSub }]} />
           <Animated.Text style={[styles.subtext, { opacity: fadeSub }]}>
-            Let's see what's next for you today.
+            {t.letsSeeWhatsNext}
           </Animated.Text>
         </View>
 
@@ -98,7 +100,7 @@ export default function GreetingScreen() {
             accessibilityRole="button"
             accessibilityLabel="See today's medications"
           >
-            <Text style={styles.buttonText}>See today's medications</Text>
+            <Text style={styles.buttonText}>{t.seeTodaysMeds}</Text>
             <Text style={styles.buttonArrow}>→</Text>
           </Pressable>
         </Animated.View>

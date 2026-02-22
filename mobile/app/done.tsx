@@ -17,6 +17,7 @@ import { useRouter } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { theme } from "../theme";
 import { useVelaStore } from "../store/useVelaStore";
+import { useT } from "../i18n";
 
 const { width } = Dimensions.get("window");
 
@@ -35,6 +36,7 @@ export default function DoneScreen() {
   const router = useRouter();
   const { profile } = useVelaStore();
   const senior = profile?.seniorName ?? "Friend";
+  const t = useT();
 
   // Staggered entrance animations
   const glowScale = useRef(new Animated.Value(0.3)).current;
@@ -108,7 +110,7 @@ export default function DoneScreen() {
             transform: [{ translateY: textSlide }],
           }}
         >
-          <Text style={styles.headline}>All done for today,</Text>
+          <Text style={styles.headline}>{t.allDoneForToday},</Text>
           <Text style={styles.name}>{senior}.</Text>
         </Animated.View>
 
@@ -118,9 +120,9 @@ export default function DoneScreen() {
         {/* Subtext */}
         <Animated.View style={{ opacity: subFade }}>
           <Text style={styles.subtext}>
-            Every single one. You did great.
+            {t.everyOneGreatJob}
           </Text>
-          <Text style={styles.subtext2}>Get some rest</Text>
+          <Text style={styles.subtext2}>{t.getSomeRest}</Text>
         </Animated.View>
       </View>
 
@@ -131,7 +133,7 @@ export default function DoneScreen() {
           onPress={() => router.replace("/(tabs)/")}
           accessibilityLabel="Return to home"
         >
-          <Text style={styles.resetText}>← Back to home</Text>
+          <Text style={styles.resetText}>{t.backToHome}</Text>
         </Pressable>
         <View style={styles.brandRow}>
           <Text style={styles.brandName}>Vela</Text>
