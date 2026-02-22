@@ -143,29 +143,7 @@ export default function ConfirmScreen() {
           if (result.dosageWarning) setDosageWarning(result.dosageWarning);
           else setDosageWarning(null); // Clear previous warning if new check passes
 
-          // Auto-append only critical recommendations to instructions to save space
-          const additions: string[] = [];
-          result.warnings.forEach((w) => {
-            if (w.severity === "MAJOR" || w.severity === "MODERATE") {
-              if (w.recommendation) {
-                const firstSentence = w.recommendation.split(/[.!?]/).filter(Boolean)[0];
-                if (firstSentence) additions.push("• " + firstSentence.trim() + ".");
-              }
-            }
-          });
-          // We removed scheduleNotes from being pushed here because it is too verbose
-          
-          if (additions.length > 0) {
-            setEditableInstructions((prev) => {
-              // Strip out old auto-added notes before appending new ones to prevent stacking
-              const cleanPrev = prev.split("\n\n⚠️ Safety notes:\n")[0];
-              const separator = cleanPrev.trim() ? "\n\n⚠️ Safety notes:\n" : "";
-              return cleanPrev.trim() + separator + additions.join("\n");
-            });
-          } else {
-             // If there are no new additions, strip out the safety notes block
-             setEditableInstructions((prev) => prev.split("\n\n⚠️ Safety notes:\n")[0].trim());
-          }
+
 
           // Animate warnings in
           Animated.timing(warningFade, {
@@ -217,8 +195,8 @@ export default function ConfirmScreen() {
     confidencePercent >= 90
       ? theme.colors.success
       : confidencePercent >= 70
-      ? theme.colors.warning
-      : theme.colors.danger;
+        ? theme.colors.warning
+        : theme.colors.danger;
 
   return (
     <SafeAreaView style={styles.container}>
@@ -298,7 +276,7 @@ export default function ConfirmScreen() {
                 />
               </View>
             </View>
-            
+
             <View style={styles.detailItem}>
               <Text style={styles.detailIcon}>⏰</Text>
               <View style={{ flex: 1 }}>
