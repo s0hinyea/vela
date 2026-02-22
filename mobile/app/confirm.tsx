@@ -204,10 +204,7 @@ export default function ConfirmScreen() {
         contentContainerStyle={styles.scroll}
         showsVerticalScrollIndicator={false}
       >
-        {/* Back link */}
-        <Pressable onPress={() => router.back()} style={styles.backLink}>
-          <Text style={styles.backLinkText}>← Back to scan</Text>
-        </Pressable>
+        {/* Removed text "Back" link from top as requested */}
 
         {/* Conversational header */}
         <Animated.View style={[styles.headerBlock, { opacity: fadeIn }]}>
@@ -473,6 +470,17 @@ export default function ConfirmScreen() {
             onPress={() => router.back()}
           >
             <Text style={styles.fixButtonText}>Fix something</Text>
+          </Pressable>
+          <Pressable
+            style={({ pressed }) => [
+              styles.discardButton,
+              pressed && styles.discardButtonPressed,
+              saving && styles.buttonDisabled,
+            ]}
+            onPress={() => router.replace("/(tabs)")}
+            disabled={saving}
+          >
+            <Text style={styles.discardButtonText}>Discard</Text>
           </Pressable>
         </View>
       </ScrollView>
@@ -860,6 +868,23 @@ const styles = StyleSheet.create({
   fixButtonText: {
     fontFamily: theme.fonts.semiBold,
     color: theme.colors.textSecondary,
+    fontSize: theme.fontSizes.md,
+  },
+  discardButton: {
+    borderWidth: 2,
+    borderColor: theme.colors.danger,
+    paddingVertical: theme.spacing.sm,
+    borderRadius: theme.radii.xl,
+    alignItems: "center",
+    backgroundColor: "transparent",
+  },
+  discardButtonPressed: {
+    backgroundColor: theme.colors.dangerSoft,
+    transform: [{ scale: 0.97 }],
+  },
+  discardButtonText: {
+    fontFamily: theme.fonts.semiBold,
+    color: theme.colors.danger,
     fontSize: theme.fontSizes.md,
   },
   buttonDisabled: { opacity: 0.6 },
