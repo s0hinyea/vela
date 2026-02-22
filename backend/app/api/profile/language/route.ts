@@ -121,15 +121,20 @@ export async function PATCH(request: NextRequest) {
             });
         }
 
-        // 6. Trigger background group-audio generation to compile new translated schedules
+        // 6. Trigger group-audio generation to compile new translated schedules
+        // We await this so the frontend language spinner stays active until the new audio is fully ready
         const baseUrl = request.nextUrl.origin;
         const today = new Date().toISOString().split("T")[0];
 
-        fetch(`${baseUrl}/api/voice/generate-schedule`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ profileId, date: today })
-        }).catch(err => console.error("Failed to trigger schedule generation:", err));
+        try {
+            await fetch(`${baseUrl}/api/voice/generate-schedule`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ profileId, date: today })
+            });
+        } catch (err) {
+            console.error("Failed to trigger schedule generation:", err);
+        }
 
         return NextResponse.json({
             success: true,

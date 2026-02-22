@@ -12,6 +12,7 @@ import {
   ActivityIndicator,
   Animated,
   ScrollView,
+  RefreshControl,
 } from "react-native";
 import { useRouter, useFocusEffect } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -46,22 +47,29 @@ export default function NowScreen() {
   const fadeIn = useRef(new Animated.Value(0)).current;
   const slideUp = useRef(new Animated.Value(30)).current;
 
+  // Refresh functionality
+  const [refreshing, setRefreshing] = useState(false);
+
+  const onRefresh = useCallback(async () => {
+    if (!profile) return;
+    setRefreshing(true);
+    try {
+      const meds = await fetchMedications(profile.id);
+      setMedications(meds);
+      const schedule = await fetchTodaySchedule(profile.id);
+      setSchedule(schedule.slots, schedule.allTaken);
+    } catch (e) {
+      console.error("Failed to refresh schedule:", e);
+    } finally {
+      setRefreshing(false);
+    }
+  }, [profile?.id, setMedications, setSchedule]);
+
   // Refetch schedule when screen comes into focus
   useFocusEffect(
     useCallback(() => {
-      async function refresh() {
-        if (!profile) return;
-        try {
-          const meds = await fetchMedications(profile.id);
-          setMedications(meds);
-          const schedule = await fetchTodaySchedule(profile.id);
-          setSchedule(schedule.slots, schedule.allTaken);
-        } catch (e) {
-          console.error("Failed to refresh schedule:", e);
-        }
-      }
-      refresh();
-    }, [profile?.id])
+      onRefresh();
+    }, [onRefresh])
   );
 
   useEffect(() => {
@@ -127,6 +135,13 @@ export default function NowScreen() {
         <ScrollView
           contentContainerStyle={styles.scrollContent}
           showsVerticalScrollIndicator={false}
+          refreshControl={
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={onRefresh}
+              tintColor={theme.colors.primary}
+            />
+          }
         >
           {/* Status message */}
           <View style={styles.caughtUpHeader}>
@@ -282,6 +297,13 @@ export default function NowScreen() {
       <ScrollView
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+            tintColor={theme.colors.primary}
+          />
+        }
       >
         {/* Time badge */}
         <View style={styles.timeBadge}>

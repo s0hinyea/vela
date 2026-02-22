@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSupabase } from "@/lib/supabase";
 import { generateAndCacheVoice } from "@/lib/elevenlabs";
-import { translateNotificationTexts } from "@/lib/gemini";
+import { generateConversationalAudioScripts, translateNotificationTexts } from "@/lib/gemini";
 
 // POST /api/voice/generate-schedule
 // Body: { profileId, date }
@@ -46,41 +46,8 @@ export async function POST(request: NextRequest) {
         // 4. Generate audio batches per time slot
         for (const [time, meds] of Object.entries(timeGroups)) {
             // Build the scripts
-            const isSingle = meds.length === 1;
-            const medList = meds.map((m) => `${m.name} ${m.dosage}`).join(isSingle ? "" : " and ");
-
-            let detailedInstructions = "";
-            let colorHints = "";
-
-            if (isSingle) {
-                const med = meds[0];
-                detailedInstructions = med.instructions ? ` ${med.instructions}.` : "";
-                colorHints = med.color ? ` — that's the ${med.color} one` : "";
-            } else {
-                const instructionParts = meds
-                    .filter(m => m.instructions || m.color)
-                    .map(m => {
-                        let text = `For your ${m.name}`;
-                        if (m.color) text += `, which is the ${m.color} one,`;
-                        if (m.instructions) text += ` ${m.instructions}.`;
-                        else text += `.`;
-                        return text;
-                    });
-
-                if (instructionParts.length > 0) {
-                    detailedInstructions = " " + instructionParts.join(" ");
-                }
-            }
-
             console.log("GENERATING SCRIPT:", meds.length, "MEDS");
-            let scripts = [
-                // heads_up
-                { stage: "heads_up", text: `${seniorName}, your ${medList} ${isSingle ? "is" : "are"} coming up soon.${detailedInstructions}` },
-                // action
-                { stage: "action", text: `${seniorName}, it's time for your ${medList}${colorHints}.${detailedInstructions}` },
-                // follow_up
-                { stage: "follow_up", text: `Just checking in, ${seniorName}. Did you take your ${medList}?` }
-            ];
+            let scripts = await generateConversationalAudioScripts(seniorName, meds);
             console.log("GENERATED SCRIPTS:", JSON.stringify(scripts, null, 2));
 
             // 4a. Translate scripts if necessary

@@ -302,4 +302,100 @@ export async function askChatbot(
     });
 
     return response.text?.trim() ?? "I'm sorry, I couldn't process that. Please try again soon.";
+
+// ---------------------------------------------------------------------------
+// 5. Conversational Audio Script Generation — weaves instructions naturally
+// ---------------------------------------------------------------------------
+
+const CONVERSATIONAL_AUDIO_PROMPT = `You are an expert caregiver writing spoken audio scripts for an elderly patient named {seniorName}.
+
+You need to generate 3 short, conversational scripts for their medications:
+- heads_up: A brief warning that their medications are coming up soon.
+- action: The main reminder to take the medications right now, including specific instructions and color hints.
+- follow_up: A quick check-in asking if they remembered to take them.
+
+Medications scheduled for this time:
+{medications}
+
+Return ONLY a valid JSON array of 3 objects exactly matching this format:
+[
+  { "stage": "heads_up", "text": "script here..." },
+  { "stage": "action", "text": "script here..." },
+  { "stage": "follow_up", "text": "script here..." }
+]
+
+CRITICAL RULES for the 'text' fields:
+1. WEAVE instructions naturally. Instead of "For your A take X. For your B take Y.", combine them sensibly. If multiple pills say "Take by mouth", just say "Take them by mouth" once.
+2. EXPAND all clinical abbreviations for text-to-speech. For example, "mg" MUST become "milligrams", "mcg" MUST become "micrograms", "ml" MUST become "milliliters".
+3. Use a warm, encouraging, respectful tone.
+4. Keep the scripts very concise and to the point. Do not add unnecessary fluff or dangerous medical advice.
+5. Make sure the 'action' script includes the color hints if provided (e.g. "the white oval pill").
+6. SLOW PACING: Insert strategic commas (,) and em dashes (—) frequently to force the text-to-speech engine to speak slower and pause more. Break up long numbers or sentences so a senior can easily follow along.
+7. Return ONLY the JSON array, no markdown fences.`;
+
+export async function generateConversationalAudioScripts(
+    seniorName: string,
+    medications: any[]
+): Promise<{ stage: "heads_up" | "action" | "follow_up"; text: string }[]> {
+    const medListStr = medications.map(m =>
+        `- ${m.name} ${m.dosage}` +
+        (m.color ? ` (Color: ${m.color})` : '') +
+        (m.instructions ? ` (Instructions: ${m.instructions})` : '')
+    ).join("\n");
+
+    const prompt = CONVERSATIONAL_AUDIO_PROMPT
+        .replace("{seniorName}", seniorName)
+        .replace("{medications}", medListStr);
+
+    try {
+        const response = await getGemini().models.generateContent({
+            model: MODEL,
+            contents: [{ role: "user", parts: [{ text: prompt }] }],
+            config: {
+                temperature: 0.2, // keep it relatively deterministic but natural
+            }
+        });
+
+        const text = response.text?.trim() ?? "";
+        const cleaned = text.replace(/^```(?:json)?\s*/i, "").replace(/```\s*$/i, "").trim();
+
+        const result = JSON.parse(cleaned);
+
+        // Basic validation
+        if (Array.isArray(result) && result.length === 3 && result[0].stage === "heads_up") {
+            return result as { stage: "heads_up" | "action" | "follow_up"; text: string }[];
+        }
+        throw new Error("Invalid structure returned from Gemini");
+    } catch (e) {
+        console.error("Conversational script generation failed, falling back to static strings:", e);
+
+        // Fallback to the old logic if Gemini fails
+        const isSingle = medications.length === 1;
+        const medList = medications.map((m) => `${m.name} ${m.dosage}`).join(isSingle ? "" : " and ");
+        let detailedInstructions = "";
+        let colorHints = "";
+
+        if (isSingle) {
+            const med = medications[0];
+            detailedInstructions = med.instructions ? ` ${med.instructions}.` : "";
+            colorHints = med.color ? ` — that's the ${med.color} one` : "";
+        } else {
+            const instructionParts = medications
+                .filter(m => m.instructions || m.color)
+                .map(m => {
+                    let text = `For your ${m.name}`;
+                    if (m.color) text += `, which is the ${m.color} one,`;
+                    if (m.instructions) text += ` ${m.instructions}.`;
+                    else text += `.`;
+                    return text;
+                });
+            if (instructionParts.length > 0) detailedInstructions = " " + instructionParts.join(" ");
+        }
+
+        return [
+            { stage: "heads_up", text: `${seniorName}, your ${medList} ${isSingle ? "is" : "are"} coming up soon.${detailedInstructions}` },
+            { stage: "action", text: `${seniorName}, it's time for your ${medList}${colorHints}.${detailedInstructions}` },
+            { stage: "follow_up", text: `Just checking in, ${seniorName}. Did you take your ${medList}?` }
+        ];
+    }
 }

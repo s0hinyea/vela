@@ -115,15 +115,20 @@ export async function POST(request: NextRequest) {
             );
         }
 
-        // 4. Trigger background group-audio generation for today's schedule
+        // 4. Trigger group-audio generation for today's schedule
+        // We await this so the frontend loading spinner stays active until the new audio is fully ready
         const baseUrl = request.nextUrl.origin;
         const today = new Date().toISOString().split("T")[0];
 
-        fetch(`${baseUrl}/api/voice/generate-schedule`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ profileId, date: today })
-        }).catch(err => console.error("Failed to trigger schedule generation:", err));
+        try {
+            await fetch(`${baseUrl}/api/voice/generate-schedule`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ profileId, date: today })
+            });
+        } catch (err) {
+            console.error("Failed to trigger schedule generation:", err);
+        }
 
         return NextResponse.json({
             success: true,
