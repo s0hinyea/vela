@@ -17,15 +17,18 @@ import { useRouter, useFocusEffect } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { theme } from "../../theme";
 import { useVelaStore } from "../../store/useVelaStore";
-import { logDose, fetchMedications, fetchTodaySchedule } from "../../api";
 import { useVoicePlayer } from "../../hooks/useVoicePlayer";
+import { useNotifications } from "../../hooks/useNotifications";
 import { useAuth } from "../../hooks/useAuth";
+import { MOCK_PROFILE, DEMO_MODE } from "../../mocks";
+import { logDose, fetchMedications, fetchTodaySchedule } from "../../api";
 
 export default function NowScreen() {
   const router = useRouter();
   const { currentSlot, todaySlots, allTaken, markTaken, profile, forceDue, setSchedule, setMedications } = useVelaStore();
   const [logging, setLogging] = useState(false);
   const { play, stop, isPlaying } = useVoicePlayer();
+  const { simulateNextReminder } = useNotifications();
 
   // Real-time clock for the front page
   const [now, setNow] = useState(new Date());
@@ -211,6 +214,17 @@ export default function NowScreen() {
         >
           <Text style={styles.addButtonText}>+ Add medication</Text>
         </Pressable>
+
+        {/* Demo: simulate reminder */}
+        <Pressable
+          style={styles.simulateButton}
+          onPress={() => {
+            const id = DEMO_MODE ? MOCK_PROFILE.id : profile?.id;
+            if (id) simulateNextReminder(id);
+          }}
+        >
+          <Text style={styles.simulateText}>Simulate reminder</Text>
+        </Pressable>
       </SafeAreaView>
     );
   }
@@ -295,9 +309,16 @@ export default function NowScreen() {
 
             <View style={styles.instructionRow}>
               <Text style={styles.instructionIcon}>💡</Text>
-              <Text style={styles.instructions}>
-                {currentSlot.instructions}
-              </Text>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.instructions}>
+                  {currentSlot.instructionsTranslated ?? currentSlot.instructions}
+                </Text>
+                {currentSlot.instructionsTranslated && (
+                  <Text style={styles.instructionsEnglish}>
+                    {currentSlot.instructions}
+                  </Text>
+                )}
+              </View>
             </View>
           </View>
         </Animated.View>
@@ -335,9 +356,14 @@ export default function NowScreen() {
               if (isPlaying) {
                 stop();
               } else {
+                const preferredLang = profile?.preferredLanguage ?? "en";
+                const spokenText = currentSlot.instructionsTranslated
+                  ? `${currentSlot.medicationName}, ${currentSlot.dosage}. ${currentSlot.instructionsTranslated}`
+                  : `It's time to take your ${currentSlot.medicationName}, ${currentSlot.dosage}. ${currentSlot.instructions}.`;
                 play({
                   audioUrl: currentSlot.audioUrl,
-                  fallbackText: `It's time to take your ${currentSlot.medicationName}, ${currentSlot.dosage}. ${currentSlot.instructions}.`,
+                  fallbackText: spokenText,
+                  language: preferredLang,
                 });
               }
             }}
@@ -386,6 +412,17 @@ export default function NowScreen() {
         accessibilityLabel="Add a new medication"
       >
         <Text style={styles.addButtonText}>+ Add medication</Text>
+      </Pressable>
+
+      {/* Demo: simulate reminder */}
+      <Pressable
+        style={styles.simulateButton}
+        onPress={() => {
+          const id = DEMO_MODE ? MOCK_PROFILE.id : profile?.id;
+          if (id) simulateNextReminder(id);
+        }}
+      >
+        <Text style={styles.simulateText}>Simulate reminder</Text>
       </Pressable>
     </SafeAreaView>
   );
@@ -664,6 +701,14 @@ const styles = StyleSheet.create({
     lineHeight: 28,
     flex: 1,
   },
+  instructionsEnglish: {
+    fontFamily: theme.fonts.regular,
+    fontSize: theme.fontSizes.xs,
+    color: theme.colors.textSecondary,
+    opacity: 0.6,
+    marginTop: 4,
+    fontStyle: "italic",
+  },
   // Actions
   actions: {
     gap: theme.spacing.sm,
@@ -776,5 +821,16 @@ const styles = StyleSheet.create({
     fontFamily: theme.fonts.semiBold,
     color: theme.colors.accent,
     fontSize: theme.fontSizes.md,
+  },
+  simulateButton: {
+    alignItems: "center",
+    paddingVertical: 4,
+    marginBottom: theme.spacing.sm,
+    opacity: 0.3,
+  },
+  simulateText: {
+    fontFamily: theme.fonts.regular,
+    fontSize: 11,
+    color: theme.colors.textSecondary,
   },
 });

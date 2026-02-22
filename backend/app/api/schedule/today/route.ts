@@ -87,6 +87,7 @@ export async function GET(request: NextRequest) {
                 medicationName: med.name,
                 dosage: med.dosage,
                 instructions: med.instructions,
+                instructionsTranslated: med.instructions_translated ?? null,
                 scheduledTime: time,
                 scheduledTimeLabel,
                 status,

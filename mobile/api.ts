@@ -290,3 +290,31 @@ export async function fetchNotificationSchedule(profileId: string): Promise<{
   if (!json.success) throw new Error(json.error);
   return json.data;
 }
+
+// ─── Update Language & Retranslate ────────────────────────────────────────────
+export async function updateLanguage(
+  profileId: string,
+  language: string
+): Promise<{
+  profileId: string;
+  language: string;
+  medicationsUpdated: number;
+  medications: { id: string; instructionsTranslated: string | null }[];
+}> {
+  if (DEMO_MODE) {
+    return mockDelay({
+      profileId,
+      language,
+      medicationsUpdated: 0,
+      medications: [],
+    }, 1500);
+  }
+  const res = await fetch(`${BASE_URL}/api/profile/language`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ profileId, language }),
+  });
+  const json = await res.json();
+  if (!json.success) throw new Error(json.error);
+  return json.data;
+}

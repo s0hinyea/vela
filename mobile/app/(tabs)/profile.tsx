@@ -2,7 +2,7 @@
  * Profile Tab — Settings, medication list, and account management.
  * Warm and clean, consistent with Vela's design language.
  */
-import React, { useCallback, useState } from "react";
+import React, { useCallback, useState, useEffect } from "react";
 import {
   View,
   Text,
@@ -12,21 +12,55 @@ import {
   Alert,
   ActionSheetIOS,
   Platform,
+  ActivityIndicator,
+  Modal,
+  FlatList,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter, useFocusEffect } from "expo-router";
 import { theme } from "../../theme";
 import { useVelaStore } from "../../store/useVelaStore";
 import { useAuth } from "../../hooks/useAuth";
-import { fetchMedications, deleteMedication } from "../../api";
+import { fetchMedications, deleteMedication, updateLanguage } from "../../api";
 import type { Medication } from "../../types";
+
+const LANGUAGES = [
+  { code: "en", flag: "🇺🇸", label: "English" },
+  { code: "es", flag: "🇪🇸", label: "Español" },
+  { code: "zh", flag: "🇨🇳", label: "中文" },
+  { code: "hi", flag: "🇮🇳", label: "हिन्दी" },
+  { code: "fr", flag: "🇫🇷", label: "Français" },
+  { code: "ar", flag: "🇸🇦", label: "العربية" },
+  { code: "pt", flag: "🇧🇷", label: "Português" },
+  { code: "ko", flag: "🇰🇷", label: "한국어" },
+  { code: "ja", flag: "🇯🇵", label: "日本語" },
+  { code: "vi", flag: "🇻🇳", label: "Tiếng Việt" },
+  { code: "tl", flag: "🇵🇭", label: "Tagalog" },
+  { code: "ru", flag: "🇷🇺", label: "Русский" },
+];
 
 export default function ProfileScreen() {
   const router = useRouter();
-  const { profile, medications, setMedications } = useVelaStore();
+  const { profile, medications, setMedications, setProfile } = useVelaStore();
   const { user, signOut } = useAuth();
   const seniorName = profile?.seniorName ?? "Friend";
   const caregiverName = profile?.caregiverName ?? "Caregiver";
+  const [selectedLanguage, setSelectedLanguage] = useState(
+    profile?.preferredLanguage ?? "en"
+  );
+  const [savingLang, setSavingLang] = useState(false);
+  const [dropdownOpen, setDropdownOpen] = useState(false);
+
+  // Sync dropdown with profile when it loads asynchronously
+  useEffect(() => {
+    if (profile?.preferredLanguage) {
+      setSelectedLanguage(profile.preferredLanguage);
+    }
+  }, [profile?.preferredLanguage]);
+
+  // Track whether the user has changed the language (unsaved)
+  const savedLanguage = profile?.preferredLanguage ?? "en";
+  const hasUnsavedChange = selectedLanguage !== savedLanguage;
 
   // Refresh medications when this tab is focused
   useFocusEffect(
@@ -119,6 +153,30 @@ export default function ProfileScreen() {
           onPress: () => handleDelete(med),
         },
       ]);
+  const handleSaveLanguage = async () => {
+    if (!profile || !hasUnsavedChange) return;
+    setSavingLang(true);
+    try {
+      await updateLanguage(profile.id, selectedLanguage);
+
+      // Update profile in store
+      setProfile({ ...profile, preferredLanguage: selectedLanguage });
+
+      // Refresh medications to get updated translations
+      const meds = await fetchMedications(profile.id);
+      setMedications(meds);
+
+      const langObj = LANGUAGES.find((l) => l.code === selectedLanguage);
+      Alert.alert(
+        "Language Updated",
+        `All medications have been retranslated to ${langObj?.label ?? selectedLanguage}.`
+      );
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "Unknown error";
+      console.error("Language save failed:", msg);
+      Alert.alert("Error", `Failed to update language: ${msg}`);
+    } finally {
+      setSavingLang(false);
     }
   };
 
@@ -205,6 +263,102 @@ export default function ProfileScreen() {
             ))
           )}
         </View>
+
+        {/* Language Section */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>
+            {seniorName}'s Language
+          </Text>
+          <Text style={styles.langSubtext}>
+            Reminders and instructions will be spoken in this language.
+          </Text>
+
+          {/* Dropdown trigger */}
+          <Pressable
+            style={styles.dropdownTrigger}
+            onPress={() => setDropdownOpen(true)}
+            disabled={savingLang}
+          >
+            <Text style={styles.dropdownFlag}>
+              {LANGUAGES.find((l) => l.code === selectedLanguage)?.flag}
+            </Text>
+            <Text style={styles.dropdownLabel}>
+              {LANGUAGES.find((l) => l.code === selectedLanguage)?.label}
+            </Text>
+            <Text style={styles.dropdownChevron}>▼</Text>
+          </Pressable>
+
+          {/* Save button — visible only when language has changed */}
+          {hasUnsavedChange && (
+            <Pressable
+              style={({ pressed }) => [
+                styles.saveButton,
+                pressed && styles.saveButtonPressed,
+                savingLang && styles.saveButtonDisabled,
+              ]}
+              onPress={handleSaveLanguage}
+              disabled={savingLang}
+            >
+              {savingLang ? (
+                <ActivityIndicator color={theme.colors.textOnPrimary} size="small" />
+              ) : (
+                <Text style={styles.saveButtonText}>Save & Retranslate</Text>
+              )}
+            </Pressable>
+          )}
+          {savingLang && (
+            <Text style={styles.savingHint}>
+              Translating {medications.length} medication{medications.length !== 1 ? "s" : ""}…
+            </Text>
+          )}
+        </View>
+
+        {/* Language Dropdown Modal */}
+        <Modal
+          visible={dropdownOpen}
+          transparent
+          animationType="fade"
+          onRequestClose={() => setDropdownOpen(false)}
+        >
+          <Pressable
+            style={styles.modalOverlay}
+            onPress={() => setDropdownOpen(false)}
+          >
+            <View style={styles.modalContent}>
+              <Text style={styles.modalTitle}>Select Language</Text>
+              <FlatList
+                data={LANGUAGES}
+                keyExtractor={(item) => item.code}
+                renderItem={({ item }) => {
+                  const isActive = item.code === selectedLanguage;
+                  return (
+                    <Pressable
+                      style={[
+                        styles.modalRow,
+                        isActive && styles.modalRowActive,
+                      ]}
+                      onPress={() => {
+                        setSelectedLanguage(item.code);
+                        setDropdownOpen(false);
+                      }}
+                    >
+                      <Text style={styles.modalFlag}>{item.flag}</Text>
+                      <Text
+                        style={[
+                          styles.modalLabel,
+                          isActive && styles.modalLabelActive,
+                        ]}
+                      >
+                        {item.label}
+                      </Text>
+                      {isActive && <Text style={styles.modalCheck}>✓</Text>}
+                    </Pressable>
+                  );
+                }}
+              />
+            </View>
+          </Pressable>
+        </Modal>
 
         {/* Account Section */}
         <View style={styles.section}>
@@ -435,5 +589,117 @@ const styles = StyleSheet.create({
     color: theme.colors.textSecondary,
     marginTop: 4,
     textAlign: "center",
+  },
+  // Language dropdown
+  langSubtext: {
+    fontFamily: theme.fonts.regular,
+    fontSize: theme.fontSizes.xs,
+    color: theme.colors.textSecondary,
+    marginTop: 2,
+    marginBottom: theme.spacing.sm,
+  },
+  dropdownTrigger: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: theme.spacing.sm,
+    backgroundColor: theme.colors.surface,
+    borderRadius: theme.radii.lg,
+    borderWidth: 1.5,
+    borderColor: theme.colors.borderLight,
+    padding: theme.spacing.md,
+  },
+  dropdownFlag: {
+    fontSize: 22,
+  },
+  dropdownLabel: {
+    flex: 1,
+    fontFamily: theme.fonts.semiBold,
+    fontSize: theme.fontSizes.md,
+    color: theme.colors.textPrimary,
+  },
+  dropdownChevron: {
+    fontSize: 12,
+    color: theme.colors.textSecondary,
+  },
+  saveButton: {
+    backgroundColor: theme.colors.primary,
+    borderRadius: theme.radii.xl,
+    paddingVertical: theme.spacing.sm,
+    alignItems: "center",
+    justifyContent: "center",
+    marginTop: theme.spacing.sm,
+  },
+  saveButtonPressed: {
+    backgroundColor: theme.colors.primaryLight,
+    transform: [{ scale: 0.97 }],
+  },
+  saveButtonDisabled: {
+    opacity: 0.6,
+  },
+  saveButtonText: {
+    fontFamily: theme.fonts.bold,
+    fontSize: theme.fontSizes.md,
+    color: theme.colors.textOnPrimary,
+  },
+  savingHint: {
+    fontFamily: theme.fonts.regular,
+    fontSize: theme.fontSizes.xs,
+    color: theme.colors.textSecondary,
+    textAlign: "center",
+    marginTop: theme.spacing.xs,
+    fontStyle: "italic",
+  },
+  // Language modal
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.4)",
+    justifyContent: "center",
+    alignItems: "center",
+    padding: theme.spacing.lg,
+  },
+  modalContent: {
+    backgroundColor: theme.colors.surface,
+    borderRadius: theme.radii.xl,
+    width: "100%",
+    maxHeight: 480,
+    overflow: "hidden",
+  },
+  modalTitle: {
+    fontFamily: theme.fonts.bold,
+    fontSize: theme.fontSizes.lg,
+    color: theme.colors.primary,
+    padding: theme.spacing.md,
+    borderBottomWidth: 1,
+    borderBottomColor: theme.colors.borderLight,
+  },
+  modalRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: theme.spacing.sm,
+    paddingVertical: 14,
+    paddingHorizontal: theme.spacing.md,
+    borderBottomWidth: 1,
+    borderBottomColor: theme.colors.borderLight,
+  },
+  modalRowActive: {
+    backgroundColor: theme.colors.accentSoft,
+  },
+  modalFlag: {
+    fontSize: 22,
+  },
+  modalLabel: {
+    flex: 1,
+    fontFamily: theme.fonts.medium,
+    fontSize: theme.fontSizes.md,
+    color: theme.colors.textPrimary,
+  },
+  modalLabelActive: {
+    fontFamily: theme.fonts.bold,
+    color: theme.colors.accent,
+  },
+  modalCheck: {
+    fontSize: 16,
+    color: theme.colors.accent,
+    fontFamily: theme.fonts.bold,
   },
 });

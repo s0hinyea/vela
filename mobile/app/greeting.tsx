@@ -64,6 +64,7 @@ export default function GreetingScreen() {
               id: data.id,
               seniorName: data.senior_name || "Friend",
               caregiverName: data.caregiver_name || "Caregiver",
+              preferredLanguage: data.preferred_language ?? "en",
               createdAt: data.created_at,
             });
 

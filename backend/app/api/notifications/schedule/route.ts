@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSupabase } from "@/lib/supabase";
+import { translateNotificationTexts } from "@/lib/gemini";
 
 // GET /api/notifications/schedule?profileId=xxx
 // Returns grouped notification schedule — medications at the same time
@@ -32,6 +33,7 @@ export async function GET(request: NextRequest) {
     }
 
     const seniorName = profile.senior_name;
+    const language = profile.preferred_language ?? "en";
 
     // 2. Get all medications
     const { data: medications, error: medError } = await supabase
@@ -183,11 +185,31 @@ export async function GET(request: NextRequest) {
     // Sort by trigger time
     notifications.sort((a, b) => a.triggerTime.localeCompare(b.triggerTime));
 
+    // 6. Translate notification texts if language isn't English
+    if (language !== "en" && notifications.length > 0) {
+        // Collect all translatable strings: [title, body, audioText] × N notifications
+        const allTexts = notifications.flatMap((n) => [n.title, n.body, n.audioText]);
+
+        try {
+            const translated = await translateNotificationTexts(allTexts, language);
+
+            // Map translated strings back onto notifications (groups of 3)
+            for (let i = 0; i < notifications.length; i++) {
+                notifications[i].title = translated[i * 3] ?? notifications[i].title;
+                notifications[i].body = translated[i * 3 + 1] ?? notifications[i].body;
+                notifications[i].audioText = translated[i * 3 + 2] ?? notifications[i].audioText;
+            }
+        } catch (err) {
+            console.error("Notification translation failed, using English:", err);
+        }
+    }
+
     return NextResponse.json({
         success: true,
         data: {
             profileId,
             seniorName,
+            preferredLanguage: language,
             date: today,
             totalNotifications: notifications.length,
             notifications,

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSupabase } from "@/lib/supabase";
 import { generateAndCacheVoice } from "@/lib/elevenlabs";
+import { translateMedicationInfo } from "@/lib/gemini";
 
 // Helper: transform snake_case DB row → camelCase Medication contract
 function toMedication(row: Record<string, unknown>) {
@@ -14,6 +15,7 @@ function toMedication(row: Record<string, unknown>) {
         frequency: row.frequency,
         scheduledTimes: row.scheduled_times,
         instructions: row.instructions,
+        instructionsTranslated: row.instructions_translated ?? null,
         color: row.color ?? null,
         interactions: row.interactions ?? [],
         createdAt: row.created_at,
@@ -63,7 +65,31 @@ export async function POST(request: NextRequest) {
             );
         }
 
-        // 1. Save medication to Supabase
+        // 1. Fetch profile for senior name + language preference
+        const { data: profile } = await getSupabase()
+            .from("profiles")
+            .select("senior_name, preferred_language")
+            .eq("id", profileId)
+            .single();
+
+        const seniorName = profile?.senior_name ?? "there";
+        const language = profile?.preferred_language ?? "en";
+
+        // 2. Translate instructions if language isn't English
+        let translatedInstructions: string | null = null;
+        if (language !== "en" && scanned.instructions) {
+            try {
+                const translated = await translateMedicationInfo(
+                    { name: scanned.name, dosage: scanned.dosage, instructions: scanned.instructions },
+                    language
+                );
+                translatedInstructions = translated.instructions;
+            } catch (err) {
+                console.error("Translation failed, saving without translation:", err);
+            }
+        }
+
+        // 3. Save medication to Supabase
         const { data, error } = await getSupabase()
             .from("medications")
             .insert({
@@ -75,6 +101,7 @@ export async function POST(request: NextRequest) {
                 frequency: scanned.frequency,
                 scheduled_times: finalTimes ?? scanned.suggestedTimes,
                 instructions: scanned.instructions,
+                instructions_translated: translatedInstructions,
                 color: scanned.color ?? null,
                 interactions: interactions ?? [],
             })
@@ -88,24 +115,15 @@ export async function POST(request: NextRequest) {
             );
         }
 
-        // 2. Pre-generate voice clips for this medication's reminders (fire-and-forget)
-        // We get the senior's name from the profile
-        const { data: profile } = await getSupabase()
-            .from("profiles")
-            .select("senior_name")
-            .eq("id", profileId)
-            .single();
-
-        const seniorName = profile?.senior_name ?? "there";
+        // 4. Pre-generate voice clips — use translated text if available
         const medName = scanned.name;
         const dosage = scanned.dosage;
-        const instructions = scanned.instructions ?? "";
+        const spokenInstructions = translatedInstructions ?? scanned.instructions ?? "";
         const colorDesc = scanned.color ? ` — that's the ${scanned.color} one` : "";
 
-        // Generate voice clips in background (don't block the response)
         const voiceTexts = [
-            `${seniorName}, it's time for your ${medName} ${dosage}${colorDesc}. ${instructions}.`,
-            `${seniorName}, your ${medName} is coming up soon. ${instructions}.`,
+            `${seniorName}, it's time for your ${medName} ${dosage}${colorDesc}. ${spokenInstructions}.`,
+            `${seniorName}, your ${medName} is coming up soon. ${spokenInstructions}.`,
             `Just checking in — did you take your ${medName} ${dosage}?`,
         ];
 
@@ -117,7 +135,7 @@ export async function POST(request: NextRequest) {
                 )
             )
         ).then(() => {
-            console.log(`Voice clips pre-generated for ${medName}`);
+            console.log(`Voice clips pre-generated for ${medName} (lang: ${language})`);
         });
 
         return NextResponse.json({

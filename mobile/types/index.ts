@@ -23,6 +23,7 @@ export interface Profile {
   id: string;
   seniorName: string;
   caregiverName: string;
+  preferredLanguage?: string;
   createdAt: string;
 }
 
@@ -46,6 +47,7 @@ export interface Medication {
   frequency: Frequency;
   scheduledTimes: string[];
   instructions: string;
+  instructionsTranslated?: string | null;
   color: string | null;
   interactions: InteractionWarning[];
   startDate?: string;   // YYYY-MM-DD
@@ -60,6 +62,7 @@ export interface DoseSlot {
   medicationName: string;
   dosage: string;
   instructions: string;
+  instructionsTranslated?: string | null;
   scheduledTime: string;
   scheduledTimeLabel: string;
   status: DoseStatus;

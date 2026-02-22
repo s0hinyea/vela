@@ -5,7 +5,7 @@ import { getSupabase } from "@/lib/supabase";
 export async function POST(request: NextRequest) {
     try {
         const body = await request.json();
-        const { seniorName, caregiverName } = body;
+        const { seniorName, caregiverName, preferredLanguage } = body;
 
         if (!seniorName || !caregiverName) {
             return NextResponse.json(
@@ -19,6 +19,7 @@ export async function POST(request: NextRequest) {
             .insert({
                 senior_name: seniorName,
                 caregiver_name: caregiverName,
+                preferred_language: preferredLanguage ?? "en",
             })
             .select()
             .single();
@@ -36,6 +37,7 @@ export async function POST(request: NextRequest) {
                 id: data.id,
                 seniorName: data.senior_name,
                 caregiverName: data.caregiver_name,
+                preferredLanguage: data.preferred_language ?? "en",
                 createdAt: data.created_at,
             },
         });
@@ -78,6 +80,7 @@ export async function GET(request: NextRequest) {
             id: data.id,
             seniorName: data.senior_name,
             caregiverName: data.caregiver_name,
+            preferredLanguage: data.preferred_language ?? "en",
             createdAt: data.created_at,
         },
     });

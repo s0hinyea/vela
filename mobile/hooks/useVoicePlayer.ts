@@ -22,6 +22,8 @@ interface PlayOptions {
   audioUrl: string | null;
   /** Text to speak if audioUrl is unavailable */
   fallbackText: string;
+  /** BCP-47 language code for TTS (e.g. "es", "fr"). Defaults to "en-US" */
+  language?: string;
 }
 
 export function useVoicePlayer() {
@@ -49,7 +51,7 @@ export function useVoicePlayer() {
   }, []);
 
   const play = useCallback(
-    async ({ audioUrl, fallbackText }: PlayOptions) => {
+    async ({ audioUrl, fallbackText, language }: PlayOptions) => {
       // Stop anything currently playing
       await stop();
 
@@ -80,7 +82,7 @@ export function useVoicePlayer() {
         } else {
           // ─── TTS fallback (demo mode) ────────────────────────────────
           Speech.speak(fallbackText, {
-            language: "en-US",
+            language: language ?? "en-US",
             pitch: 1.0,
             rate: 0.85, // Slightly slower for seniors
             onDone: () => setIsPlaying(false),

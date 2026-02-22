@@ -125,3 +125,124 @@ export async function checkInteractions(
         throw new Error(`Gemini returned invalid JSON: ${text.slice(0, 200)}`);
     }
 }
+
+// ---------------------------------------------------------------------------
+// 3. Medication Translation — translates instructions to target language
+// ---------------------------------------------------------------------------
+
+const TRANSLATE_MED_PROMPT = `You are a medical translator. Translate the following medication information into {language}.
+
+Medication name: {name}
+Dosage: {dosage}
+Instructions: {instructions}
+
+Return ONLY a valid JSON object:
+{
+  "name": "keep the original medication name — do NOT translate it",
+  "dosage": "keep original dosage (e.g. 500mg) — do NOT translate numbers/units",
+  "instructions": "translated instructions in {language}, warm and simple tone"
+}
+
+Rules:
+- NEVER translate the medication name or dosage — these are clinical and must stay as-is
+- Translate ONLY the instructions into natural, warm {language}
+- Use simple words a senior would understand
+- Return ONLY the JSON object, no markdown fences`;
+
+export async function translateMedicationInfo(
+    medInfo: { name: string; dosage: string; instructions: string },
+    targetLanguage: string
+): Promise<{ name: string; dosage: string; instructions: string }> {
+    if (targetLanguage === "en") return medInfo;
+
+    const langNames: Record<string, string> = {
+        es: "Spanish", zh: "Chinese (Simplified)", hi: "Hindi",
+        fr: "French", ar: "Arabic", pt: "Portuguese",
+        ko: "Korean", ja: "Japanese", vi: "Vietnamese",
+        tl: "Tagalog", ru: "Russian", de: "German",
+    };
+
+    const langName = langNames[targetLanguage] ?? targetLanguage;
+
+    const prompt = TRANSLATE_MED_PROMPT
+        .replace(/\{language\}/g, langName)
+        .replace("{name}", medInfo.name)
+        .replace("{dosage}", medInfo.dosage)
+        .replace("{instructions}", medInfo.instructions);
+
+    const response = await getGemini().models.generateContent({
+        model: MODEL,
+        contents: [{ role: "user", parts: [{ text: prompt }] }],
+    });
+
+    const text = response.text?.trim() ?? "";
+    const cleaned = text.replace(/^```(?:json)?\s*/i, "").replace(/```\s*$/i, "").trim();
+
+    try {
+        return JSON.parse(cleaned);
+    } catch {
+        // If translation fails, return original
+        console.error("Translation parse failed, returning original:", text.slice(0, 200));
+        return medInfo;
+    }
+}
+
+// ---------------------------------------------------------------------------
+// 4. Batch Notification Translation — translates notification texts
+// ---------------------------------------------------------------------------
+
+const TRANSLATE_NOTIF_PROMPT = `You are a medical translator. Translate the following notification texts into {language}.
+
+The texts are for medication reminders sent to an elderly person. Keep the tone warm and caring.
+
+Input texts (JSON array):
+{texts}
+
+Return ONLY a valid JSON array of translated strings, in the same order:
+["translated text 1", "translated text 2", ...]
+
+Rules:
+- NEVER translate medication names or dosages (e.g. "Metformin 500mg" stays as-is)
+- Translate everything else into natural, warm {language}
+- Maintain the same meaning and tone
+- Return ONLY the JSON array, no markdown fences`;
+
+export async function translateNotificationTexts(
+    texts: string[],
+    targetLanguage: string
+): Promise<string[]> {
+    if (targetLanguage === "en" || texts.length === 0) return texts;
+
+    const langNames: Record<string, string> = {
+        es: "Spanish", zh: "Chinese (Simplified)", hi: "Hindi",
+        fr: "French", ar: "Arabic", pt: "Portuguese",
+        ko: "Korean", ja: "Japanese", vi: "Vietnamese",
+        tl: "Tagalog", ru: "Russian", de: "German",
+    };
+
+    const langName = langNames[targetLanguage] ?? targetLanguage;
+
+    const prompt = TRANSLATE_NOTIF_PROMPT
+        .replace(/\{language\}/g, langName)
+        .replace("{texts}", JSON.stringify(texts));
+
+    const response = await getGemini().models.generateContent({
+        model: MODEL,
+        contents: [{ role: "user", parts: [{ text: prompt }] }],
+    });
+
+    const text = response.text?.trim() ?? "";
+    const cleaned = text.replace(/^```(?:json)?\s*/i, "").replace(/```\s*$/i, "").trim();
+
+    try {
+        const result = JSON.parse(cleaned);
+        if (Array.isArray(result) && result.length === texts.length) {
+            return result;
+        }
+        console.error("Translation returned wrong array length, using originals");
+        return texts;
+    } catch {
+        console.error("Translation parse failed, using originals:", text.slice(0, 200));
+        return texts;
+    }
+}
