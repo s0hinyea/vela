@@ -399,7 +399,7 @@ export default function NowScreen() {
         {/* Time badge */}
         <View style={styles.timeBadge}>
           <Text style={styles.timeBadgeText}>
-            ⏰ {currentSlot.scheduledTimeLabel}
+            Next dose: {currentSlot.scheduledTimeLabel}
           </Text>
         </View>
 
@@ -485,6 +485,7 @@ export default function NowScreen() {
           <Pressable
             style={({ pressed }) => [
               styles.voiceButton,
+              styles.voiceButtonSpaced,
               isPlaying && styles.voiceButtonActive,
               pressed && styles.voiceButtonPressed,
             ]}
@@ -575,9 +576,9 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    paddingHorizontal: theme.spacing.lg,
-    paddingTop: theme.spacing.sm,
-    paddingBottom: theme.spacing.xs,
+    paddingHorizontal: theme.spacing.md,
+    paddingTop: theme.spacing.xs,
+    paddingBottom: 6,
   },
   headerTitleRow: {
     flexDirection: "row",
@@ -589,7 +590,7 @@ const styles = StyleSheet.create({
   },
   headerTitle: {
     fontFamily: theme.fonts.semiBold,
-    fontSize: theme.fontSizes.sm,
+    fontSize: theme.fontSizes.xs,
     color: theme.colors.accent,
     letterSpacing: 1.5,
     textTransform: "uppercase",
@@ -599,13 +600,13 @@ const styles = StyleSheet.create({
   },
   headerDate: {
     fontFamily: theme.fonts.medium,
-    fontSize: theme.fontSizes.xs,
+    fontSize: 12,
     color: theme.colors.textSecondary,
-    marginBottom: 2,
+    marginBottom: 1,
   },
   headerTime: {
     fontFamily: theme.fonts.bold,
-    fontSize: theme.fontSizes.sm,
+    fontSize: theme.fontSizes.xs,
     color: theme.colors.textPrimary,
   },
   pillCounter: {
@@ -794,9 +795,9 @@ const styles = StyleSheet.create({
   // Scroll
   scrollContent: {
     flexGrow: 1,
-    paddingHorizontal: theme.spacing.lg,
-    paddingTop: theme.spacing.md,
-    paddingBottom: theme.spacing.md,
+    paddingHorizontal: theme.spacing.md,
+    paddingTop: theme.spacing.sm,
+    paddingBottom: theme.spacing.sm,
   },
   scrollContentEmpty: {
     justifyContent: "center",
@@ -805,12 +806,12 @@ const styles = StyleSheet.create({
   timeBadge: {
     alignSelf: "center",
     backgroundColor: theme.colors.surfaceWarm,
-    paddingHorizontal: theme.spacing.md,
-    paddingVertical: theme.spacing.xs,
+    paddingHorizontal: theme.spacing.sm,
+    paddingVertical: 6,
     borderRadius: theme.radii.full,
     borderWidth: 1,
     borderColor: theme.colors.borderLight,
-    marginBottom: theme.spacing.md,
+    marginBottom: theme.spacing.sm,
   },
   timeBadgeText: {
     fontFamily: theme.fonts.semiBold,
@@ -820,67 +821,67 @@ const styles = StyleSheet.create({
   // Card
   card: {
     backgroundColor: theme.colors.surface,
-    borderRadius: theme.radii.xl,
+    borderRadius: theme.radii.lg,
     overflow: "hidden",
     borderWidth: 1,
     borderColor: theme.colors.border,
-    marginBottom: theme.spacing.lg,
+    marginBottom: theme.spacing.md,
     ...theme.shadows.card,
   },
   cardAccent: {
-    height: 5,
+    height: 4,
     backgroundColor: theme.colors.accent,
   },
   cardContent: {
-    padding: theme.spacing.lg,
-    paddingTop: theme.spacing.md,
+    padding: theme.spacing.md,
+    paddingTop: theme.spacing.sm,
   },
   medicationName: {
     fontFamily: theme.fonts.extraBold,
-    fontSize: theme.fontSizes.xl,
+    fontSize: 28,
     color: theme.colors.primary,
-    marginBottom: 4,
+    marginBottom: 2,
     letterSpacing: -0.3,
   },
   dosage: {
     fontFamily: theme.fonts.semiBold,
-    fontSize: theme.fontSizes.lg,
+    fontSize: theme.fontSizes.md,
     color: theme.colors.accent,
-    marginBottom: theme.spacing.md,
+    marginBottom: theme.spacing.sm,
   },
   instructionRow: {
     flexDirection: "row",
     alignItems: "flex-start",
-    gap: theme.spacing.sm,
+    gap: 8,
     backgroundColor: theme.colors.surfaceWarm,
     borderRadius: theme.radii.md,
-    padding: theme.spacing.sm,
+    padding: 8,
   },
-  instructionIcon: { fontSize: 18, marginTop: 2 },
+  instructionIcon: { fontSize: 16, marginTop: 1 },
   instructions: {
     fontFamily: theme.fonts.regular,
-    fontSize: theme.fontSizes.md,
+    fontSize: 17,
     color: theme.colors.textSecondary,
-    lineHeight: 28,
+    lineHeight: 23,
     flex: 1,
   },
   instructionsEnglish: {
     fontFamily: theme.fonts.regular,
-    fontSize: theme.fontSizes.xs,
+    fontSize: 12,
     color: theme.colors.textSecondary,
     opacity: 0.6,
-    marginTop: 4,
+    marginTop: 2,
     fontStyle: "italic",
   },
   // Actions
   actions: {
-    gap: theme.spacing.sm,
-    marginBottom: theme.spacing.lg,
+    gap: 8,
+    marginBottom: theme.spacing.sm,
   },
   takenButton: {
     backgroundColor: theme.colors.primary,
-    paddingVertical: theme.spacing.md,
-    borderRadius: theme.radii.xl,
+    paddingVertical: 14,
+    borderRadius: theme.radii.lg,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
@@ -897,16 +898,16 @@ const styles = StyleSheet.create({
   takenButtonText: {
     fontFamily: theme.fonts.bold,
     color: theme.colors.textOnPrimary,
-    fontSize: theme.fontSizes.lg,
+    fontSize: theme.fontSizes.md,
   },
   takenCheck: {
     fontFamily: theme.fonts.bold,
     color: theme.colors.textOnPrimary,
-    fontSize: theme.fontSizes.lg,
+    fontSize: theme.fontSizes.md,
   },
   windowHint: {
     fontFamily: theme.fonts.medium,
-    fontSize: theme.fontSizes.xs,
+    fontSize: 12,
     color: theme.colors.textSecondary,
     textAlign: "center",
   },
@@ -918,25 +919,29 @@ const styles = StyleSheet.create({
     borderColor: theme.colors.danger,
     borderWidth: 1,
     borderRadius: theme.radii.md,
-    paddingVertical: theme.spacing.xs,
-    paddingHorizontal: theme.spacing.sm,
+    paddingVertical: 6,
+    paddingHorizontal: 10,
+    marginBottom: 8,
   },
   timingErrorText: {
     fontFamily: theme.fonts.medium,
-    fontSize: theme.fontSizes.xs,
+    fontSize: 12,
     color: theme.colors.danger,
     textAlign: "center",
   },
   voiceButton: {
     borderWidth: 2,
     borderColor: theme.colors.primary,
-    paddingVertical: theme.spacing.sm,
-    borderRadius: theme.radii.xl,
+    paddingVertical: 10,
+    borderRadius: theme.radii.lg,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
     gap: theme.spacing.sm,
     backgroundColor: "transparent",
+  },
+  voiceButtonSpaced: {
+    marginTop: 20,
   },
   voiceButtonPressed: {
     backgroundColor: theme.colors.accentSoft,
@@ -946,18 +951,19 @@ const styles = StyleSheet.create({
     borderColor: theme.colors.accent,
     backgroundColor: theme.colors.accentSoft,
   },
-  voiceButtonIcon: { fontSize: 20 },
+  voiceButtonIcon: { fontSize: 18 },
   voiceButtonText: {
     fontFamily: theme.fonts.semiBold,
     color: theme.colors.primary,
-    fontSize: theme.fontSizes.md,
+    fontSize: theme.fontSizes.sm,
   },
   buttonDisabled: { opacity: 0.6 },
   // Timeline
   timeline: {
     flexDirection: "row",
     justifyContent: "space-around",
-    paddingVertical: theme.spacing.md,
+    marginTop: theme.spacing.md,
+    paddingVertical: theme.spacing.sm,
     borderTopWidth: 1,
     borderTopColor: theme.colors.borderLight,
   },
@@ -967,11 +973,11 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   dot: {
-    width: 12,
-    height: 12,
-    borderRadius: 6,
+    width: 10,
+    height: 10,
+    borderRadius: 5,
     backgroundColor: theme.colors.border,
-    marginBottom: 4,
+    marginBottom: 3,
   },
   dotTaken: { backgroundColor: theme.colors.success },
   dotDue: { backgroundColor: theme.colors.accent },
@@ -979,7 +985,7 @@ const styles = StyleSheet.create({
   dotUpcoming: { backgroundColor: theme.colors.borderLight },
   timelineName: {
     fontFamily: theme.fonts.medium,
-    fontSize: 12,
+    fontSize: 11,
     color: theme.colors.textSecondary,
     textAlign: "center",
   },
@@ -989,15 +995,15 @@ const styles = StyleSheet.create({
   },
   timelineTime: {
     fontFamily: theme.fonts.regular,
-    fontSize: 11,
+    fontSize: 10,
     color: theme.colors.textSecondary,
   },
   // Add button
   addButton: {
-    marginHorizontal: theme.spacing.lg,
+    marginHorizontal: theme.spacing.md,
     marginBottom: theme.spacing.xs,
-    paddingVertical: theme.spacing.sm,
-    borderRadius: theme.radii.xl,
+    paddingVertical: 10,
+    borderRadius: theme.radii.lg,
     borderWidth: 2,
     borderColor: theme.colors.accent,
     alignItems: "center",
@@ -1010,7 +1016,7 @@ const styles = StyleSheet.create({
   addButtonText: {
     fontFamily: theme.fonts.semiBold,
     color: theme.colors.accent,
-    fontSize: theme.fontSizes.md,
+    fontSize: theme.fontSizes.sm,
   },
   simulateButton: {
     alignItems: "center",

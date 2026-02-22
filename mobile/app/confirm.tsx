@@ -37,6 +37,88 @@ const SEVERITY_CONFIG: Record<string, { color: string; bg: string; icon: string 
   MINOR: { color: theme.colors.success, bg: theme.colors.successSoft, icon: "🟢" },
 };
 
+function compactActionFromText(text: string) {
+  const normalized = text.toLowerCase();
+  if (normalized.includes("avoid") || normalized.includes("do not") || normalized.includes("don't")) {
+    return "avoid";
+  }
+  if (
+    normalized.includes("separate") ||
+    normalized.includes("apart") ||
+    normalized.includes("hour") ||
+    normalized.includes("timing")
+  ) {
+    return "space doses";
+  }
+  if (normalized.includes("bleed")) return "watch bleeding";
+  if (normalized.includes("dizzy") || normalized.includes("drows")) return "watch dizziness";
+  if (normalized.includes("pressure")) return "watch pressure";
+  if (normalized.includes("kidney")) return "watch kidneys";
+  if (normalized.includes("monitor") || normalized.includes("watch")) return "monitor";
+  return "use caution";
+}
+
+function pickOtherDrugName(drugs: [string, string], newMedicationName: string): string {
+  const values = drugs.map((d) => String(d || "").trim()).filter(Boolean);
+  if (!values.length) return "other meds";
+  const normalizedNew = newMedicationName.trim().toLowerCase();
+  const counterpart = values.find((d) => d.toLowerCase() !== normalizedNew);
+  return counterpart ?? values[0];
+}
+
+function compactWarningsForDisplay(
+  warnings: InteractionWarning[],
+  newMedicationName: string
+): InteractionWarning[] {
+  return warnings.map((w) => {
+    if (w.severity !== "MAJOR" && w.severity !== "MODERATE") return w;
+    const otherDrug = pickOtherDrugName(w.drugs, newMedicationName);
+    const action = compactActionFromText(`${w.recommendation ?? ""} ${w.explanation ?? ""}`);
+    return {
+      ...w,
+      explanation: `${w.severity === "MAJOR" ? "High risk" : "Interaction risk"} with ${otherDrug}.`,
+      recommendation: `${action} with ${otherDrug}.`,
+    };
+  });
+}
+
+function buildSafetyInstructionAddon(
+  warnings: InteractionWarning[],
+  newMedicationName: string
+): string | null {
+  const important = warnings
+    .filter((w) => w.severity === "MAJOR" || w.severity === "MODERATE")
+    .sort((a, b) => (a.severity === "MAJOR" ? -1 : 1) - (b.severity === "MAJOR" ? -1 : 1))
+    .slice(0, 2);
+
+  if (!important.length) return null;
+
+  const parts = important.map((w) => {
+    const otherDrug = pickOtherDrugName(w.drugs, newMedicationName);
+    const action = compactActionFromText(`${w.recommendation ?? ""} ${w.explanation ?? ""}`);
+    return `${action} with ${otherDrug}`;
+  });
+  return parts.join("; ");
+}
+
+function applySafetyAddonToInstructions(
+  instructions: string,
+  safetyAddon: string | null
+): string {
+  const base = String(instructions ?? "")
+    .replace(/\s*Safety:\s*.*$/i, "")
+    .trim();
+  if (!safetyAddon) return base;
+
+  const normalizedBase = base ? (/[.!?]$/.test(base) ? base : `${base}.`) : "";
+  const normalizedAddon = safetyAddon.replace(/[.!?]+$/g, "").trim();
+  if (!normalizedAddon) return normalizedBase || base;
+
+  return normalizedBase
+    ? `${normalizedBase} Safety: ${normalizedAddon}.`
+    : `Safety: ${normalizedAddon}.`;
+}
+
 export default function ConfirmScreen() {
   const router = useRouter();
   const { data } = useLocalSearchParams<{ data: string }>();
@@ -146,10 +228,19 @@ export default function ConfirmScreen() {
         scanned.frequency
       )
         .then((result) => {
-          setWarnings(result.warnings);
+          const compactedWarnings = compactWarningsForDisplay(
+            result.warnings,
+            editableName.trim()
+          );
+          setWarnings(compactedWarnings);
           setScheduleNotes(result.scheduleNotes);
           if (result.dosageWarning) setDosageWarning(result.dosageWarning);
           else setDosageWarning(null); // Clear previous warning if new check passes
+          const safetyAddon = buildSafetyInstructionAddon(
+            compactedWarnings,
+            editableName.trim()
+          );
+          setEditableInstructions((prev) => applySafetyAddonToInstructions(prev, safetyAddon));
 
 
 
@@ -165,7 +256,7 @@ export default function ConfirmScreen() {
     }, 800); // 800ms debounce
 
     return () => clearTimeout(timeoutId);
-  }, [editableName, editableDosage]);
+  }, [editableName, editableDosage, existingMedNames, scanned?.frequency]);
 
   const runSaveMedication = async () => {
     if (!scanned || !profile) return;
