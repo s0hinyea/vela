@@ -423,15 +423,6 @@ export default function ConfirmScreen() {
                     />
                   </View>
                 </View>
-                {scanned.color && (
-                  <View style={styles.detailItem}>
-                    <Text style={styles.detailIcon}>🔍</Text>
-                    <View>
-                      <Text style={styles.detailLabel}>Appearance</Text>
-                      <Text style={styles.detailValue}>{scanned.color}</Text>
-                    </View>
-                  </View>
-                )}
               </>
             ) : (
               <Pressable
@@ -441,7 +432,7 @@ export default function ConfirmScreen() {
                   setShowMoreDetails(true);
                 }}
               >
-                <Text style={styles.showMoreBtnText}>Review Dates / Appearance ↓</Text>
+                <Text style={styles.showMoreBtnText}>Review Dates ↓</Text>
               </Pressable>
             )}
           </View>

@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSupabase } from "@/lib/supabase";
-import { generateAndCacheVoice } from "@/lib/elevenlabs";
 import { translateMedicationInfo } from "@/lib/gemini";
 
 // Helper: transform snake_case DB row → camelCase Medication contract
@@ -115,20 +114,26 @@ export async function POST(request: NextRequest) {
             );
         }
 
-        // 4. Trigger group-audio generation for today's schedule
-        // We await this so the frontend loading spinner stays active until the new audio is fully ready
+        // 4. Trigger group-audio generation for today's schedule in the background.
+        // Do not await so medication save stays fast.
         const baseUrl = request.nextUrl.origin;
         const today = new Date().toISOString().split("T")[0];
-
-        try {
-            await fetch(`${baseUrl}/api/voice/generate-schedule`, {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ profileId, date: today })
+        void fetch(`${baseUrl}/api/voice/generate-schedule`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ profileId, date: today })
+        })
+            .then((res) => {
+                if (!res.ok) {
+                    console.error(
+                        "[medications] background voice generation trigger failed:",
+                        res.status
+                    );
+                }
+            })
+            .catch((err) => {
+                console.error("Failed to trigger schedule generation:", err);
             });
-        } catch (err) {
-            console.error("Failed to trigger schedule generation:", err);
-        }
 
         return NextResponse.json({
             success: true,
