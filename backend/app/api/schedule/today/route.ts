@@ -58,19 +58,14 @@ export async function GET(request: NextRequest) {
             );
 
             // Determine status
-            let status: string;
+            let status: string = "upcoming";
             if (log && (log as Record<string, unknown>).taken_at) {
                 status = "taken";
             } else if (time <= currentHHMM) {
-                // If the time has passed within a 1-hour grace window, it's "due"
-                const [timeH, timeM] = time.split(":").map(Number);
-                const slotMinutes = timeH * 60 + timeM;
-                const nowMinutes = now.getHours() * 60 + now.getMinutes();
-                if (nowMinutes - slotMinutes <= 60) {
-                    status = "due";
-                } else {
-                    status = "missed";
-                }
+                // If the scheduled time has already passed today AND it hasn't been taken, it's due!
+                // We shouldn't lock them out by calling it "missed" just because an hour passed. 
+                // They still need to take it.
+                status = "due";
             } else {
                 status = "upcoming";
             }
