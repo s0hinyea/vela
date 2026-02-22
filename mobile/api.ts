@@ -331,9 +331,18 @@ export async function askVelaChat(
     }, 1200);
   }
 
-  const normalizedBase = BASE_URL.replace(/\/+$/, "").replace(/\/api$/, "");
-  const url = `${normalizedBase}/api/chat`;
-  console.log(`[ChatAPI] POSTing to ${url} for profile ${profileId}`);
+  const rawBase = (BASE_URL || "").trim().replace(/\/+$/, "");
+  const baseNoApiChat = rawBase.replace(/\/api\/chat$/, "");
+  const baseNoApi = rawBase.replace(/\/api$/, "");
+  const seedCandidates = [
+    rawBase.endsWith("/api/chat") ? rawBase : `${baseNoApi}/api/chat`,
+    `${baseNoApiChat}/api/chat`,
+    `${baseNoApi}/chat`,
+  ].map((u) => u.replace(/\/+$/, ""));
+  const candidateUrls = Array.from(new Set(seedCandidates.flatMap((u) => [u, `${u}/`])));
+  console.log(
+    `[ChatAPI] profile=${profileId} base=${BASE_URL} candidates=${candidateUrls.join(", ")}`
+  );
 
   try {
     const payload = JSON.stringify({ profileId, medicationId, question });
@@ -348,17 +357,45 @@ export async function askVelaChat(
       return { res, text };
     };
 
-    let { res, text } = await postChat(url);
-    console.log(
-      `[ChatAPI] Status: ${res.status}, Body length: ${text.length}, redirected: ${res.redirected}, finalUrl: ${res.url}`
-    );
+    const queue = [...candidateUrls];
+    const attempted = new Set<string>();
+    let res: Response | null = null;
+    let text = "";
+    let last405 = false;
 
-    // Some hosts/proxies can redirect POST -> GET, which lands on a 405.
-    // Retry once with a direct POST to the final URL.
-    if (res.status === 405 && !text && res.redirected && res.url && res.url !== url) {
-      console.warn(`[ChatAPI] 405 after redirect. Retrying direct POST to ${res.url}`);
-      ({ res, text } = await postChat(res.url));
-      console.log(`[ChatAPI] Retry status: ${res.status}, body length: ${text.length}`);
+    while (queue.length > 0) {
+      const target = queue.shift()!;
+      if (attempted.has(target)) continue;
+      attempted.add(target);
+
+      ({ res, text } = await postChat(target));
+      console.log(
+        `[ChatAPI] Attempt ${attempted.size}: ${target} -> ${res.status} (len=${text.length}) redirected=${res.redirected} final=${res.url}`
+      );
+
+      if (res.ok) break;
+
+      if (res.status === 405) {
+        last405 = true;
+        const redirectUrl = (res.url || "").replace(/\/+$/, "");
+        if (redirectUrl && !attempted.has(redirectUrl)) {
+          queue.unshift(redirectUrl, `${redirectUrl}/`);
+        }
+        continue;
+      }
+
+      // Non-405 error: stop retrying URL variants and return the actual failure.
+      break;
+    }
+
+    if (!res) {
+      throw new Error("Failed to reach chat endpoint.");
+    }
+
+    if (!res.ok && last405 && res.status === 405) {
+      throw new Error(
+        `Server error (405): method not allowed on tried chat URLs: ${Array.from(attempted).join(", ")}`
+      );
     }
     
     if (!res.ok) {
