@@ -108,20 +108,26 @@ export default function ChatScreen() {
 
   const handleSend = async () => {
     if (!input.trim() || !selectedMed || !profile || loading) return;
+    const question = input.trim();
+    const startedAt = Date.now();
+    const uiRequestId = `ui-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`;
 
     const userMessage: Message = {
       id: Date.now().toString(),
       sender: "user",
-      text: input.trim(),
+      text: question,
       timestamp: new Date(),
     };
 
     setMessages((prev) => [...prev, userMessage]);
     setInput("");
     setLoading(true);
+    console.log(
+      `[ChatUI:${uiRequestId}] send start profile=${profile.id} med=${selectedMed.id} qLen=${question.length} q="${question.slice(0, 80)}"`
+    );
 
     try {
-      const result = await askVelaChat(profile.id, selectedMed.id, userMessage.text);
+      const result = await askVelaChat(profile.id, selectedMed.id, question);
       
       const velaMessage: Message = {
         id: (Date.now() + 1).toString(),
@@ -132,7 +138,14 @@ export default function ChatScreen() {
 
       setMessages((prev) => [...prev, velaMessage]);
       setRemaining(result.remaining);
+      console.log(
+        `[ChatUI:${uiRequestId}] send success remaining=${result.remaining} elapsedMs=${Date.now() - startedAt}`
+      );
     } catch (e: any) {
+      console.error(
+        `[ChatUI:${uiRequestId}] send failed elapsedMs=${Date.now() - startedAt}:`,
+        e
+      );
       const errorMessage: Message = {
         id: (Date.now() + 1).toString(),
         sender: "vela",
@@ -142,6 +155,7 @@ export default function ChatScreen() {
       setMessages((prev) => [...prev, errorMessage]);
     } finally {
       setLoading(false);
+      console.log(`[ChatUI:${uiRequestId}] loading=false`);
     }
   };
 

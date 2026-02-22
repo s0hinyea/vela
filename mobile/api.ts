@@ -23,6 +23,11 @@ import type {
 } from "./types";
 
 const BASE_URL = process.env.EXPO_PUBLIC_API_URL ?? "http://localhost:3000";
+const CHAT_REQUEST_TIMEOUT_MS = 15000;
+
+function createChatRequestId() {
+  return `chat-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
+}
 
 // ─── Profile ──────────────────────────────────────────────────────────────────
 export async function fetchProfile(profileId: string): Promise<Profile> {
@@ -340,38 +345,74 @@ export async function askVelaChat(
     `${baseNoApi}/chat`,
   ].map((u) => u.replace(/\/+$/, ""));
   const candidateUrls = Array.from(new Set(seedCandidates.flatMap((u) => [u, `${u}/`])));
+  const requestId = createChatRequestId();
+  const startedAt = Date.now();
+  const questionPreview = question.trim().slice(0, 80);
   console.log(
-    `[ChatAPI] profile=${profileId} base=${BASE_URL} candidates=${candidateUrls.join(", ")}`
+    `[ChatAPI:${requestId}] start profile=${profileId} med=${medicationId} qLen=${question.length} qPreview="${questionPreview}" base=${BASE_URL} candidates=${candidateUrls.join(", ")}`
   );
 
   try {
     const payload = JSON.stringify({ profileId, medicationId, question });
 
-    const postChat = async (targetUrl: string) => {
-      const res = await fetch(targetUrl, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: payload,
-      });
-      const text = await res.text();
-      return { res, text };
+    const postChat = async (targetUrl: string, attempt: number) => {
+      const controller = new AbortController();
+      const attemptStartedAt = Date.now();
+      const timeout = setTimeout(() => controller.abort(), CHAT_REQUEST_TIMEOUT_MS);
+      try {
+        const res = await fetch(targetUrl, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "X-Chat-Request-Id": requestId,
+            "X-Chat-Attempt": String(attempt),
+          },
+          body: payload,
+          signal: controller.signal,
+        });
+        const text = await res.text();
+        const elapsedMs = Date.now() - attemptStartedAt;
+        return { res, text, elapsedMs };
+      } catch (err: any) {
+        const elapsedMs = Date.now() - attemptStartedAt;
+        if (err?.name === "AbortError") {
+          throw new Error(
+            `[${requestId}] Chat request timed out after ${CHAT_REQUEST_TIMEOUT_MS}ms (${targetUrl}, attempt ${attempt}, elapsed ${elapsedMs}ms).`
+          );
+        }
+        throw new Error(
+          `[${requestId}] Network error on ${targetUrl} (attempt ${attempt}, elapsed ${elapsedMs}ms): ${err?.message ?? String(err)}`
+        );
+      } finally {
+        clearTimeout(timeout);
+      }
     };
 
     const queue = [...candidateUrls];
     const attempted = new Set<string>();
     let res: Response | null = null;
     let text = "";
+    let attemptCount = 0;
     let last405 = false;
+    let lastAttemptError: Error | null = null;
 
     while (queue.length > 0) {
       const target = queue.shift()!;
       if (attempted.has(target)) continue;
       attempted.add(target);
-
-      ({ res, text } = await postChat(target));
-      console.log(
-        `[ChatAPI] Attempt ${attempted.size}: ${target} -> ${res.status} (len=${text.length}) redirected=${res.redirected} final=${res.url}`
-      );
+      attemptCount += 1;
+      try {
+        const attemptResult = await postChat(target, attemptCount);
+        res = attemptResult.res;
+        text = attemptResult.text;
+        console.log(
+          `[ChatAPI:${requestId}] attempt=${attemptCount} url=${target} status=${res.status} bodyLen=${text.length} redirected=${res.redirected} finalUrl=${res.url} elapsedMs=${attemptResult.elapsedMs}`
+        );
+      } catch (err: any) {
+        lastAttemptError = err instanceof Error ? err : new Error(String(err));
+        console.error(`[ChatAPI:${requestId}] attempt=${attemptCount} failed:`, lastAttemptError);
+        continue;
+      }
 
       if (res.ok) break;
 
@@ -384,11 +425,16 @@ export async function askVelaChat(
         continue;
       }
 
+      if (res.status === 404) {
+        continue;
+      }
+
       // Non-405 error: stop retrying URL variants and return the actual failure.
       break;
     }
 
     if (!res) {
+      if (lastAttemptError) throw lastAttemptError;
       throw new Error("Failed to reach chat endpoint.");
     }
 
@@ -413,10 +459,16 @@ export async function askVelaChat(
     }
 
     const json = JSON.parse(text);
+    console.log(
+      `[ChatAPI:${requestId}] success totalElapsedMs=${Date.now() - startedAt} remaining=${json?.data?.remaining}`
+    );
     if (!json.success) throw new Error(json.error || "Chat failed");
     return json.data;
   } catch (err: any) {
-    console.error("[ChatAPI] Fetch failed:", err);
+    console.error(
+      `[ChatAPI:${requestId}] failed totalElapsedMs=${Date.now() - startedAt}:`,
+      err
+    );
     throw err;
   }
 }
