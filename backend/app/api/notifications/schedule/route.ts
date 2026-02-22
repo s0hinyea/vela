@@ -4,7 +4,7 @@ import { getSupabase } from "@/lib/supabase";
 // GET /api/notifications/schedule?profileId=xxx
 // Returns grouped notification schedule — medications at the same time
 // are combined into a single notification with 3 stages:
-//   heads_up (-15 min), action (at dose time), follow_up (+30 min)
+//   heads_up (-30 min), action (at dose time), follow_up (+15 min)
 export async function GET(request: NextRequest) {
     const profileId = request.nextUrl.searchParams.get("profileId");
 
@@ -87,10 +87,10 @@ export async function GET(request: NextRequest) {
             const displayTime = `${displayH}:${String(m).padStart(2, "0")} ${ampm}`;
 
             // Compute heads-up and follow-up times
-            const headsUpMin = Math.max(0, h * 60 + m - 15);
+            const headsUpMin = Math.max(0, h * 60 + m - 30);
             const headsUpTime = `${String(Math.floor(headsUpMin / 60)).padStart(2, "0")}:${String(headsUpMin % 60).padStart(2, "0")}`;
 
-            const followUpMin = Math.min(1439, h * 60 + m + 30);
+            const followUpMin = Math.min(1439, h * 60 + m + 15);
             const followUpTime = `${String(Math.floor(followUpMin / 60)).padStart(2, "0")}:${String(followUpMin % 60).padStart(2, "0")}`;
 
             // Check if ALL meds at this time are taken

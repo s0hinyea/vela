@@ -3,9 +3,10 @@ import { getSupabase } from "@/lib/supabase";
 
 export async function PUT(
     request: NextRequest,
-    { params }: { params: { id: string } }
+    context: { params: Promise<{ id: string }> }
 ) {
     try {
+        const { id } = await context.params;
         const body = await request.json();
         const { name, dosage, instructions } = body;
 
@@ -23,7 +24,7 @@ export async function PUT(
                 dosage,
                 instructions: instructions ?? null,
             })
-            .eq("id", params.id)
+            .eq("id", id)
             .select()
             .single();
 
@@ -46,13 +47,14 @@ export async function PUT(
 
 export async function DELETE(
     request: NextRequest,
-    { params }: { params: { id: string } }
+    context: { params: Promise<{ id: string }> }
 ) {
     try {
+        const { id } = await context.params;
         const { error } = await getSupabase()
             .from("medications")
             .delete()
-            .eq("id", params.id);
+            .eq("id", id);
 
         if (error) {
             return NextResponse.json(

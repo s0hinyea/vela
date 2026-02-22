@@ -174,6 +174,7 @@ export default function NowScreen() {
         doseSlotId: currentSlot.id,
         profileId: profile.id,
         medicationId: currentSlot.medicationId,
+        scheduledTime: currentSlot.scheduledTime,
         takenAt: new Date().toISOString(),
       });
       markTaken(currentSlot.id);

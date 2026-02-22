@@ -5,7 +5,7 @@ import { getSupabase } from "@/lib/supabase";
 export async function POST(request: NextRequest) {
     try {
         const body = await request.json();
-        const { doseSlotId, profileId, medicationId, takenAt } = body;
+        const { doseSlotId, profileId, medicationId, takenAt, scheduledTime: scheduledTimeFromBody } = body;
 
         if (!profileId || !medicationId || !takenAt) {
             return NextResponse.json(
@@ -20,13 +20,16 @@ export async function POST(request: NextRequest) {
         const supabase = getSupabase();
         const today = new Date().toISOString().split("T")[0];
 
-        // Extract scheduled_time from the doseSlotId if it follows our pattern,
-        // otherwise try to find it from the medication
+        // Prefer explicit scheduledTime from client, then parse HH:MM from slot id.
+        // This avoids UUID parsing issues when med ids include dashes.
         let scheduledTime = "00:00";
-        if (doseSlotId && doseSlotId.startsWith("slot-")) {
-            // Pattern: slot-{medId}-{HH:MM}
-            const parts = doseSlotId.split("-");
-            scheduledTime = parts[parts.length - 1];
+        if (typeof scheduledTimeFromBody === "string" && /^\d{2}:\d{2}$/.test(scheduledTimeFromBody)) {
+            scheduledTime = scheduledTimeFromBody;
+        } else if (typeof doseSlotId === "string") {
+            const match = doseSlotId.match(/(\d{2}:\d{2})$/);
+            if (match?.[1]) {
+                scheduledTime = match[1];
+            }
         }
 
         // Upsert: if a log already exists for this med + time + date, update it
