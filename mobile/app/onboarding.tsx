@@ -51,8 +51,9 @@ export default function OnboardingScreen() {
 
       DeviceEventEmitter.emit("seniorNameConfigured");
 
-      // Done onboarding — head to the greeting screen
-      router.replace("/greeting");
+      // We don't call router.replace() here. The global _layout.tsx observes
+      // "seniorNameConfigured", fetches all your backend data, and then safely
+      // navigates you to /greeting once everything is 100% loaded.
     } catch (e: any) {
       Alert.alert("Error", e.message || "Something went wrong.");
     } finally {

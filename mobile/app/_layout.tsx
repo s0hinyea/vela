@@ -15,6 +15,8 @@ import { theme } from "../theme";
 import { useAuth } from "../hooks/useAuth";
 import { useNotifications } from "../hooks/useNotifications";
 import { DEMO_MODE } from "../mocks";
+import { fetchMedications, fetchTodaySchedule } from "../api";
+import { useVelaStore } from "../store/useVelaStore";
 
 export default function RootLayout() {
   const [fontsLoaded] = useFonts({
@@ -28,36 +30,93 @@ export default function RootLayout() {
   const { user, loading: authLoading } = useAuth();
   const [profileLoaded, setProfileLoaded] = useState(false);
   const [hasSeniorConfigured, setHasSeniorConfigured] = useState(false);
+  const [hasRoutedInitialGreeting, setHasRoutedInitialGreeting] = useState(false);
   const router = useRouter();
   const segments = useSegments();
   const { scheduleAll } = useNotifications();
 
   // Check profile state when user changes
   useEffect(() => {
-    // If not authenticated, we know there's no profile to load
+    // 1. Unauthenticated: Clear memory, reset profile loading
     if (!user) {
+      useVelaStore.getState().reset();
       setHasSeniorConfigured(false);
       setProfileLoaded(true);
       return;
     }
 
-    // Reset profile loaded state when a user signs in, so we wait for the fetch
+    // 2. Lock down routing, wait for all data fetches to pass
     setProfileLoaded(false);
 
-    // Check if senior_name exists
-    import("../lib/supabase").then(({ supabase }) => {
-      supabase.from("profiles")
-        .select("senior_name")
-        .eq("id", user.id)
-        .single()
-        .then(({ data }) => {
-          setHasSeniorConfigured(!!data?.senior_name);
-          setProfileLoaded(true);
-        });
-    });
+    async function initProfile() {
+      try {
+        if (DEMO_MODE) {
+          const { fetchProfile } = await import("../api");
+          const { MOCK_PROFILE } = await import("../mocks");
+          const p = await fetchProfile(MOCK_PROFILE.id);
+          const { setProfile, setMedications, setSchedule } = useVelaStore.getState();
+          setProfile(p);
+          const meds = await fetchMedications(p.id);
+          setMedications(meds);
+          const schedule = await fetchTodaySchedule(p.id);
+          setSchedule(schedule.slots, schedule.allTaken);
+          setHasSeniorConfigured(true);
+          return;
+        }
+
+        const { supabase } = await import("../lib/supabase");
+        const { data, error } = await supabase
+          .from("profiles")
+          .select("*")
+          .eq("id", user!.id)
+          .single();
+
+        if (error || !data || !data.senior_name) {
+          setHasSeniorConfigured(false);
+        } else {
+          // Fully populate store globally before rendering
+          const { setProfile, setMedications, setSchedule } = useVelaStore.getState();
+          
+          setProfile({
+            id: data.id,
+            seniorName: data.senior_name,
+            caregiverName: data.caregiver_name,
+            preferredLanguage: data.preferred_language ?? "en",
+            createdAt: data.created_at,
+          });
+
+          // Pre-fetch everything else
+          try {
+            const meds = await fetchMedications(data.id);
+            setMedications(meds);
+          } catch (e) {
+            console.error("Layout: Failed to load medications", e);
+          }
+
+          try {
+            const schedule = await fetchTodaySchedule(data.id);
+            setSchedule(schedule.slots, schedule.allTaken);
+          } catch (e) {
+            console.error("Layout: Failed to load schedule", e);
+          }
+
+          setHasSeniorConfigured(true);
+        }
+      } catch (err) {
+        console.error("Failed to initialize profile:", err);
+        setHasSeniorConfigured(false);
+      } finally {
+        // Unlock router
+        setProfileLoaded(true);
+      }
+    }
+
+    initProfile();
 
     const sub = DeviceEventEmitter.addListener("seniorNameConfigured", () => {
-      setHasSeniorConfigured(true);
+      // Intentionally skipping setProfileLoaded(false) here so we don't unmount the navigator
+      // and cause a "flash" of the loading screen. We fetch quietly.
+      initProfile();
     });
 
     return () => sub.remove();
@@ -84,23 +143,28 @@ export default function RootLayout() {
     if (!user) {
       // Not signed in -> Must be in auth group
       if (!inAuthGroup) {
-        router.replace("/welcome");
+        setTimeout(() => router.replace("/welcome"), 1);
       }
     } else {
       // Signed in
       if (!hasSeniorConfigured) {
         // Needs to configure senior -> Must be in onboarding
         if (!inOnboardingGroup) {
-          router.replace("/onboarding");
+          setTimeout(() => router.replace("/onboarding"), 1);
         }
       } else {
-        // Has a configured senior -> Must NOT be in auth or onboarding
-        if (inAuthGroup || inOnboardingGroup) {
-          router.replace("/greeting");
+        // Has a configured senior
+        if (!hasRoutedInitialGreeting) {
+          // Always show greeting on first launch even if deep-linked
+          setHasRoutedInitialGreeting(true);
+          setTimeout(() => router.replace("/greeting"), 1);
+        } else if (inAuthGroup || inOnboardingGroup) {
+          // They explicitly shouldn't be here, redirect back to greeting
+          setTimeout(() => router.replace("/greeting"), 1);
         }
       }
     }
-  }, [user, authLoading, fontsLoaded, profileLoaded, hasSeniorConfigured, segments]);
+  }, [user, authLoading, fontsLoaded, profileLoaded, hasSeniorConfigured, segments, hasRoutedInitialGreeting]);
 
   // Only render the router if we are absolutely sure about the auth state AND the profile state
   // to prevent the UI flashing "Welcome -> Onboarding -> Greeting" rapidly on app launch.

@@ -18,10 +18,24 @@ import type { Medication } from "../types";
 
 export default function EditMedicationScreen() {
   const router = useRouter();
-  const { data } = useLocalSearchParams<{ data: string }>();
-  const { profile, medications, setMedications } = useVelaStore();
+  const { data, id } = useLocalSearchParams<{ data?: string; id?: string }>();
+  const { medications, setMedications } = useVelaStore();
 
-  const med: Medication | null = data ? JSON.parse(data) : null;
+  const medFromParams: Medication | null = (() => {
+    if (!data) return null;
+    try {
+      return JSON.parse(data);
+    } catch {
+      return null;
+    }
+  })();
+
+  const medFromStore =
+    id && typeof id === "string"
+      ? medications.find((m) => m.id === id) ?? null
+      : null;
+
+  const med: Medication | null = medFromParams ?? medFromStore;
 
   const [name, setName] = useState(med?.name || "");
   const [dosage, setDosage] = useState(med?.dosage || "");
@@ -33,6 +47,9 @@ export default function EditMedicationScreen() {
       <SafeAreaView style={styles.container}>
         <View style={styles.centered}>
           <Text style={styles.errorText}>No medication data found.</Text>
+          <Pressable onPress={() => router.replace("/(tabs)/profile")} style={styles.recoverButton}>
+            <Text style={styles.recoverButtonText}>Back to profile</Text>
+          </Pressable>
         </View>
       </SafeAreaView>
     );
@@ -156,6 +173,18 @@ const styles = StyleSheet.create({
     fontFamily: theme.fonts.regular,
     fontSize: theme.fontSizes.md,
     color: theme.colors.textSecondary,
+    marginBottom: theme.spacing.md,
+  },
+  recoverButton: {
+    backgroundColor: theme.colors.primary,
+    borderRadius: theme.radii.md,
+    paddingVertical: theme.spacing.sm,
+    paddingHorizontal: theme.spacing.md,
+  },
+  recoverButtonText: {
+    fontFamily: theme.fonts.semiBold,
+    fontSize: theme.fontSizes.sm,
+    color: theme.colors.textOnPrimary,
   },
   header: {
     flexDirection: "row",

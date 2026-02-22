@@ -27,7 +27,7 @@ import { useRouter, useLocalSearchParams } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
 import DateTimePicker from "@react-native-community/datetimepicker";
 import { theme } from "../theme";
-import { checkInteractions, saveMedication } from "../api";
+import { checkInteractions, fetchMedications, saveMedication } from "../api";
 import { useVelaStore } from "../store/useVelaStore";
 import type { ScannedMedication, InteractionWarning } from "../types";
 
@@ -54,6 +54,9 @@ export default function ConfirmScreen() {
   const [checkingInteractions, setCheckingInteractions] = useState(false);
   const [showMoreDetails, setShowMoreDetails] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [existingMedNames, setExistingMedNames] = useState<string[]>(
+    medications.map((m) => m.name)
+  );
 
   // Convert HH:MM string to local Date object for the picker
   const parseTime = (timeStr: string) => {
@@ -109,14 +112,31 @@ export default function ConfirmScreen() {
   }, []);
 
   useEffect(() => {
+    setExistingMedNames(medications.map((m) => m.name));
+  }, [medications]);
+
+  useEffect(() => {
+    if (!profile?.id || existingMedNames.length > 0) return;
+    fetchMedications(profile.id)
+      .then((meds) => setExistingMedNames(meds.map((m) => m.name)))
+      .catch((err) => {
+        console.error("Failed to fetch medications for interaction check:", err);
+      });
+  }, [profile?.id, existingMedNames.length]);
+
+  useEffect(() => {
     if (!scanned) return;
-    const existing = medications.map((m) => m.name);
-    if (existing.length === 0 || !editableName.trim()) return;
+    if (!editableName.trim()) return;
 
     // Debounce the check to avoid spamming the API while typing
     const timeoutId = setTimeout(() => {
       setCheckingInteractions(true);
-      checkInteractions(existing, editableName.trim(), editableDosage.trim(), scanned.frequency)
+      checkInteractions(
+        existingMedNames,
+        editableName.trim(),
+        editableDosage.trim(),
+        scanned.frequency
+      )
         .then((result) => {
           setWarnings(result.warnings);
           setScheduleNotes(result.scheduleNotes);
@@ -388,8 +408,8 @@ export default function ConfirmScreen() {
                 Checking interactions & dosage…
               </Text>
               <Text style={styles.checkingBody}>
-                Comparing with {medications.length} current medication
-                {medications.length > 1 ? "s" : ""}
+                Comparing with {existingMedNames.length} current medication
+                {existingMedNames.length !== 1 ? "s" : ""}
               </Text>
             </View>
           </View>
@@ -434,11 +454,13 @@ export default function ConfirmScreen() {
           </View>
         )}
 
-        {!checkingInteractions && warnings.length === 0 && medications.length > 0 && (
+        {!checkingInteractions && warnings.length === 0 && (
           <View style={styles.safePanel}>
             <Text style={styles.safeIcon}>✓</Text>
             <Text style={styles.safeText}>
-              No interactions found with current medications
+              {existingMedNames.length > 0
+                ? "No interactions found with current medications"
+                : "No known interactions detected for this medication"}
             </Text>
           </View>
         )}

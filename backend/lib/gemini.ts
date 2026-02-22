@@ -80,6 +80,8 @@ const INTERACT_PROMPT = `You are a pharmacist safety assistant. A senior is addi
 
 Current medications: {existing}
 New medication: {new}
+New dosage: {dosage}
+New frequency: {frequency}
 
 Analyze potential drug-drug interactions, timing conflicts, food conflicts, and duplicate therapies.
 
@@ -94,7 +96,8 @@ Return ONLY a valid JSON object with exactly this shape:
     }
   ],
   "scheduleNotes": "any timing advice, or null",
-  "safe": true/false (false if any MAJOR warning exists)
+  "safe": true/false (false if any MAJOR warning exists),
+  "dosageWarning": "optional dosage safety warning string, or null"
 }
 
 Rules:
@@ -105,11 +108,15 @@ Rules:
 
 export async function checkInteractions(
     existingMedications: string[],
-    newMedication: string
+    newMedication: string,
+    dosage?: string,
+    frequency?: string
 ) {
     const prompt = INTERACT_PROMPT
         .replace("{existing}", existingMedications.join(", ") || "none")
-        .replace("{new}", newMedication);
+        .replace("{new}", newMedication)
+        .replace("{dosage}", dosage || "unknown")
+        .replace("{frequency}", frequency || "unknown");
 
     const response = await getGemini().models.generateContent({
         model: MODEL,

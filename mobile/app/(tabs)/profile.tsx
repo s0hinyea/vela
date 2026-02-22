@@ -128,7 +128,7 @@ export default function ProfileScreen() {
           if (buttonIndex === 1) {
             router.push({
               pathname: "/edit-medication",
-              params: { data: JSON.stringify(med) },
+              params: { data: JSON.stringify(med), id: med.id },
             });
           } else if (buttonIndex === 2) {
             handleDelete(med);
@@ -144,7 +144,7 @@ export default function ProfileScreen() {
           onPress: () =>
             router.push({
               pathname: "/edit-medication",
-              params: { data: JSON.stringify(med) },
+              params: { data: JSON.stringify(med), id: med.id },
             }),
         },
         {

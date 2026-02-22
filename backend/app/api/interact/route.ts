@@ -5,7 +5,7 @@ import { checkInteractions } from "@/lib/gemini";
 export async function POST(request: NextRequest) {
     try {
         const body = await request.json();
-        const { existingMedications, newMedication } = body;
+        const { existingMedications, newMedication, dosage, frequency } = body;
 
         if (!newMedication) {
             return NextResponse.json(
@@ -16,7 +16,9 @@ export async function POST(request: NextRequest) {
 
         const result = await checkInteractions(
             existingMedications ?? [],
-            newMedication
+            newMedication,
+            dosage,
+            frequency
         );
 
         return NextResponse.json({

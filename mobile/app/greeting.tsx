@@ -9,18 +9,13 @@ import {
   Text,
   Pressable,
   StyleSheet,
-  ActivityIndicator,
   Animated,
 } from "react-native";
 import { useRouter } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { theme } from "../theme";
 import { useVelaStore } from "../store/useVelaStore";
-import { fetchProfile, fetchTodaySchedule, fetchMedications } from "../api";
-import { MOCK_PROFILE, DEMO_MODE } from "../mocks";
 import { useAuth } from "../hooks/useAuth";
-import { useNotifications } from "../hooks/useNotifications";
-import { supabase } from "../lib/supabase";
 
 function getTimeOfDay(): string {
   const hour = new Date().getHours();
@@ -31,9 +26,8 @@ function getTimeOfDay(): string {
 
 export default function GreetingScreen() {
   const router = useRouter();
-  const { profile, setProfile, setSchedule } = useVelaStore();
-  const { user, signOut } = useAuth();
-  const [loading, setLoading] = useState(true);
+  const { profile } = useVelaStore();
+  const { signOut } = useAuth();
 
   // Staggered fade-in animations
   const fadeGreeting = useRef(new Animated.Value(0)).current;
@@ -43,72 +37,16 @@ export default function GreetingScreen() {
   const slideUp = useRef(new Animated.Value(20)).current;
 
   useEffect(() => {
-    async function load() {
-      try {
-        if (DEMO_MODE) {
-          // Demo mode — use mock data
-          const p = await fetchProfile(MOCK_PROFILE.id);
-          setProfile(p);
-          const schedule = await fetchTodaySchedule(p.id);
-          setSchedule(schedule.slots, schedule.allTaken);
-        } else if (user) {
-          // Authenticated — load from Supabase
-          const { data, error } = await supabase
-            .from("profiles")
-            .select("*")
-            .eq("id", user.id)
-            .single();
-
-          if (data && !error) {
-            setProfile({
-              id: data.id,
-              seniorName: data.senior_name || "Friend",
-              caregiverName: data.caregiver_name || "Caregiver",
-              preferredLanguage: data.preferred_language ?? "en",
-              createdAt: data.created_at,
-            });
-
-            // Load real data from the backend
-            const meds = await fetchMedications(data.id);
-            useVelaStore.getState().setMedications(meds);
-
-            const schedule = await fetchTodaySchedule(data.id);
-            setSchedule(schedule.slots, schedule.allTaken);
-          }
-        }
-      } catch (e) {
-        console.error("Failed to load profile", e);
-      } finally {
-        setLoading(false);
-      }
-    }
-    load();
-  }, [user]);
-
-  useEffect(() => {
-    if (!loading) {
-      Animated.stagger(200, [
-        Animated.timing(fadeGreeting, { toValue: 1, duration: 600, useNativeDriver: true }),
-        Animated.parallel([
-          Animated.timing(fadeName, { toValue: 1, duration: 600, useNativeDriver: true }),
-          Animated.timing(slideUp, { toValue: 0, duration: 600, useNativeDriver: true }),
-        ]),
-        Animated.timing(fadeSub, { toValue: 1, duration: 500, useNativeDriver: true }),
-        Animated.timing(fadeButton, { toValue: 1, duration: 400, useNativeDriver: true }),
-      ]).start();
-    }
-  }, [loading]);
-
-  if (loading) {
-    return (
-      <SafeAreaView style={styles.container}>
-        <View style={styles.loadingContainer}>
-          <Text style={styles.loadingBrand}>Vela</Text>
-          <ActivityIndicator size="small" color={theme.colors.accent} style={{ marginTop: 16 }} />
-        </View>
-      </SafeAreaView>
-    );
-  }
+    Animated.stagger(200, [
+      Animated.timing(fadeGreeting, { toValue: 1, duration: 600, useNativeDriver: true }),
+      Animated.parallel([
+        Animated.timing(fadeName, { toValue: 1, duration: 600, useNativeDriver: true }),
+        Animated.timing(slideUp, { toValue: 0, duration: 600, useNativeDriver: true }),
+      ]),
+      Animated.timing(fadeSub, { toValue: 1, duration: 500, useNativeDriver: true }),
+      Animated.timing(fadeButton, { toValue: 1, duration: 400, useNativeDriver: true }),
+    ]).start();
+  }, []);
 
   const timeOfDay = getTimeOfDay();
   const senior = profile?.seniorName ?? "Friend";
@@ -173,17 +111,6 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: theme.colors.background,
-  },
-  loadingContainer: {
-    flex: 1,
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  loadingBrand: {
-    fontFamily: theme.fonts.bold,
-    fontSize: theme.fontSizes.xl,
-    color: theme.colors.accent,
-    letterSpacing: 2,
   },
   content: {
     flex: 1,

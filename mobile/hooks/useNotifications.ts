@@ -34,7 +34,7 @@ export function useNotifications() {
         const data = response.notification.request.content.data;
         if (data?.screen === "now") {
           forceDue();
-          router.push("/now");
+          router.push("/(tabs)");
         }
       });
 
@@ -89,5 +89,38 @@ export function useNotifications() {
     }
   }, []);
 
-  return { scheduleAll };
+  const simulateNextReminder = useCallback(async (profileId: string) => {
+    try {
+      const schedule = await fetchNotificationSchedule(profileId);
+      if (!schedule?.notifications?.length) return;
+
+      const nextAction = schedule.notifications.find(
+        (n) => n.stage === "action" && !n.allTaken
+      );
+      const notif = nextAction ?? schedule.notifications[0];
+      if (!notif) return;
+
+      await Notifications.scheduleNotificationAsync({
+        content: {
+          title: notif.title,
+          body: notif.body,
+          sound: "default",
+          data: {
+            screen: "now",
+            stage: notif.stage,
+            scheduledTime: notif.scheduledTime,
+            medications: notif.medications,
+          },
+        },
+        trigger: {
+          type: Notifications.SchedulableTriggerInputTypes.TIME_INTERVAL,
+          seconds: 2,
+        },
+      });
+    } catch (err) {
+      console.error("[Vela] Simulate failed:", err);
+    }
+  }, []);
+
+  return { scheduleAll, simulateNextReminder };
 }
