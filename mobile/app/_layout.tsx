@@ -31,9 +31,9 @@ export default function RootLayout() {
   const [profileLoaded, setProfileLoaded] = useState(false);
   const [hasSeniorConfigured, setHasSeniorConfigured] = useState(false);
   const [splashElapsed, setSplashElapsed] = useState(false);
+  const [initialRouteSettled, setInitialRouteSettled] = useState(false);
   const spin = useRef(new Animated.Value(0)).current;
   const profileLoadRunId = useRef(0);
-  const hasCompletedInitialRoute = useRef(false);
   const lastInitialTarget = useRef<string | null>(null);
   const router = useRouter();
   const pathname = usePathname();
@@ -167,7 +167,7 @@ export default function RootLayout() {
 
   useEffect(() => {
     if (lastInitialTarget.current !== initialTarget) {
-      hasCompletedInitialRoute.current = false;
+      setInitialRouteSettled(false);
       lastInitialTarget.current = initialTarget;
     }
   }, [initialTarget]);
@@ -179,12 +179,12 @@ export default function RootLayout() {
     const inAuthGroup = pathname === "/welcome" || pathname === "/signin" || pathname === "/signup";
     const inOnboardingGroup = pathname === "/onboarding";
 
-    if (!hasCompletedInitialRoute.current) {
+    if (!initialRouteSettled) {
       if (pathname !== initialTarget) {
         router.replace(initialTarget);
         return;
       }
-      hasCompletedInitialRoute.current = true;
+      setInitialRouteSettled(true);
       return;
     }
 
@@ -200,12 +200,13 @@ export default function RootLayout() {
     canRoute,
     pathname,
     initialTarget,
+    initialRouteSettled,
     user,
     hasSeniorConfigured,
     router,
   ]);
 
-  const showSplash = !startupReady || !splashElapsed;
+  const showSplash = !startupReady || !splashElapsed || (!DEMO_MODE && !initialRouteSettled);
 
   const rotate = spin.interpolate({
     inputRange: [0, 1],
