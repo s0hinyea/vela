@@ -29,7 +29,7 @@ Return ONLY a valid JSON object with exactly these fields:
   "form": "tablet" | "capsule" | "liquid" | "patch" | "inhaler" | "other",
   "frequency": "once" | "twice" | "three_times" | "four_times" | "as_needed",
   "suggestedTimes": ["HH:MM in 24hr format"],
-  "instructions": "plain English instruction, e.g. Take with food",
+  "instructions": "ONE short sentence, max 15 words, e.g. Take one tablet with food in the morning",
   "color": "physical description of the pill or null",
   "confidence": 0.0 to 1.0,
   "rawLabelText": "the raw text you read from the label"
@@ -38,7 +38,10 @@ Return ONLY a valid JSON object with exactly these fields:
 Rules:
 - frequency "once" → suggestedTimes has 1 entry, "twice" → 2 entries, etc.
 - Use sensible default times: morning=08:00, noon=12:00, evening=18:00, bedtime=22:00
-- instructions should be warm and simple, not clinical jargon
+- instructions MUST be a single short sentence, maximum 15 words
+- instructions must be warm and simple, not clinical jargon
+- NEVER include emojis, bullet points, line breaks, or safety disclaimers in instructions
+- Do NOT add warnings, side effects, or extra context to instructions
 - If you can't read part of the label, lower the confidence score
 - Return ONLY the JSON object, no markdown fences, no explanation`;
 
