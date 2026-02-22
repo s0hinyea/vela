@@ -1,8 +1,18 @@
 import { useEffect, useRef, useCallback } from "react";
 import * as Notifications from "expo-notifications";
 import { useRouter } from "expo-router";
+import { Platform } from "react-native";
 import { fetchNotificationSchedule } from "../api";
 import { useVelaStore } from "../store/useVelaStore";
+import { theme } from "../theme";
+
+const VELA_CHANNEL_ID = "vela-reminders";
+
+function toBrandedTitle(title: string, stage: string) {
+  if (title.toLowerCase().startsWith("vela")) return title;
+  const stagePrefix = stage === "action" ? "Vela" : "Vela Reminder";
+  return `${stagePrefix}: ${title}`;
+}
 
 Notifications.setNotificationHandler({
   handleNotification: async () => ({
@@ -24,6 +34,18 @@ export function useNotifications(play?: (opts: { audioUrl: string | null; fallba
       const { status } = await Notifications.getPermissionsAsync();
       if (status !== "granted") {
         await Notifications.requestPermissionsAsync();
+      }
+
+      if (Platform.OS === "android") {
+        await Notifications.setNotificationChannelAsync(VELA_CHANNEL_ID, {
+          name: "Vela Reminders",
+          importance: Notifications.AndroidImportance.HIGH,
+          lightColor: theme.colors.accent,
+          enableLights: true,
+          vibrationPattern: [0, 200, 120, 200],
+          showBadge: false,
+          sound: "default",
+        });
       }
     })();
   }, []);
@@ -76,9 +98,11 @@ export function useNotifications(play?: (opts: { audioUrl: string | null; fallba
 
         await Notifications.scheduleNotificationAsync({
           content: {
-            title: notif.title,
+            title: toBrandedTitle(notif.title, notif.stage),
             body: notif.body,
             sound: "default",
+            subtitle: "Vela",
+            color: theme.colors.accent,
             data: {
               screen: "now",
               stage: notif.stage,
@@ -91,6 +115,7 @@ export function useNotifications(play?: (opts: { audioUrl: string | null; fallba
           trigger: {
             type: Notifications.SchedulableTriggerInputTypes.TIME_INTERVAL,
             seconds: Math.max(1, secondsFromNow),
+            ...(Platform.OS === "android" ? { channelId: VELA_CHANNEL_ID } : {}),
           },
         });
       }
@@ -112,9 +137,11 @@ export function useNotifications(play?: (opts: { audioUrl: string | null; fallba
 
       await Notifications.scheduleNotificationAsync({
         content: {
-          title: notif.title,
+          title: toBrandedTitle(notif.title, notif.stage),
           body: notif.body,
           sound: "default",
+          subtitle: "Vela",
+          color: theme.colors.accent,
           data: {
             screen: "now",
             stage: notif.stage,
@@ -127,6 +154,7 @@ export function useNotifications(play?: (opts: { audioUrl: string | null; fallba
         trigger: {
           type: Notifications.SchedulableTriggerInputTypes.TIME_INTERVAL,
           seconds: 2,
+          ...(Platform.OS === "android" ? { channelId: VELA_CHANNEL_ID } : {}),
         },
       });
     } catch (err) {

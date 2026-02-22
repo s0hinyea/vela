@@ -38,6 +38,7 @@ export async function POST(request: NextRequest) {
                 seniorName: data.senior_name,
                 caregiverName: data.caregiver_name,
                 preferredLanguage: data.preferred_language ?? "en",
+                seniorPhotoUrl: data.senior_photo_url ?? null,
                 createdAt: data.created_at,
             },
         });
@@ -81,6 +82,7 @@ export async function GET(request: NextRequest) {
             seniorName: data.senior_name,
             caregiverName: data.caregiver_name,
             preferredLanguage: data.preferred_language ?? "en",
+            seniorPhotoUrl: data.senior_photo_url ?? null,
             createdAt: data.created_at,
         },
     });

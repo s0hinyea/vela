@@ -88,6 +88,7 @@ export default function RootLayout() {
             seniorName: data.senior_name,
             caregiverName: data.caregiver_name,
             preferredLanguage: data.preferred_language ?? "en",
+            seniorPhotoUrl: data.senior_photo_url ?? null,
             createdAt: data.created_at,
           });
 
@@ -248,6 +249,13 @@ export default function RootLayout() {
           <Stack.Screen name="greeting" options={{ animation: "none" }} />
           <Stack.Screen
             name="edit-medication"
+            options={{
+              presentation: "modal",
+              animation: "slide_from_bottom",
+            }}
+          />
+          <Stack.Screen
+            name="profile-photo"
             options={{
               presentation: "modal",
               animation: "slide_from_bottom",

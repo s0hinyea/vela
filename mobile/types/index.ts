@@ -24,6 +24,7 @@ export interface Profile {
   seniorName: string;
   caregiverName: string;
   preferredLanguage?: string;
+  seniorPhotoUrl?: string | null;
   createdAt: string;
 }
 
