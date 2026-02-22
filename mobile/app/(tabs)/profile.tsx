@@ -196,7 +196,11 @@ export default function ProfileScreen() {
         <View style={styles.card}>
           <View style={styles.avatarRow}>
             <View style={styles.avatar}>
-              <Text style={styles.avatarText}>{seniorName[0]}</Text>
+              <View style={styles.avatarHead} />
+              <View style={styles.avatarBody} />
+              <View style={styles.avatarBadge}>
+                <Text style={styles.avatarBadgeText}>{seniorName[0]}</Text>
+              </View>
             </View>
             <View style={styles.avatarInfo}>
               <Text style={styles.seniorName}>{seniorName}</Text>
@@ -426,13 +430,45 @@ const styles = StyleSheet.create({
     width: 56,
     height: 56,
     borderRadius: 28,
-    backgroundColor: theme.colors.primary,
+    backgroundColor: theme.colors.surfaceWarm,
+    borderWidth: 1,
+    borderColor: theme.colors.primary,
     justifyContent: "center",
     alignItems: "center",
+    position: "relative",
   },
-  avatarText: {
+  avatarHead: {
+    width: 16,
+    height: 16,
+    borderRadius: 8,
+    backgroundColor: theme.colors.primary,
+    marginBottom: 2,
+  },
+  avatarBody: {
+    width: 24,
+    height: 14,
+    borderTopLeftRadius: 12,
+    borderTopRightRadius: 12,
+    borderBottomLeftRadius: 6,
+    borderBottomRightRadius: 6,
+    backgroundColor: theme.colors.primaryLight,
+  },
+  avatarBadge: {
+    position: "absolute",
+    right: -2,
+    bottom: -2,
+    backgroundColor: theme.colors.accent,
+    width: 18,
+    height: 18,
+    borderRadius: 9,
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 1,
+    borderColor: theme.colors.surface,
+  },
+  avatarBadgeText: {
     fontFamily: theme.fonts.bold,
-    fontSize: 24,
+    fontSize: 10,
     color: theme.colors.textOnPrimary,
   },
   avatarInfo: {

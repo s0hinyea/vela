@@ -31,6 +31,31 @@ type Message = {
   timestamp: Date;
 };
 
+function MedicationAvatar() {
+  return (
+    <View style={styles.medAvatarWrap}>
+      <View style={styles.medCapsule}>
+        <View style={styles.medCapsuleLeft} />
+        <View style={styles.medCapsuleRight} />
+      </View>
+    </View>
+  );
+}
+
+function VelaAvatar() {
+  return (
+    <View style={styles.velaAvatarWrap}>
+      <View style={styles.velaFlame}>
+        <View style={styles.velaFlameCore} />
+      </View>
+      <View style={styles.velaFace}>
+        <View style={styles.velaEye} />
+        <View style={styles.velaEye} />
+      </View>
+    </View>
+  );
+}
+
 export default function ChatScreen() {
   const { profile, medications } = useVelaStore();
   
@@ -131,7 +156,7 @@ export default function ChatScreen() {
       <SafeAreaView style={styles.container}>
         <View style={styles.selectionHeader}>
           <Animated.View style={{ transform: [{ translateY: floatY }] }}>
-             <Text style={styles.largeEmoji}>🔥</Text>
+            <VelaAvatar />
           </Animated.View>
           <Text style={styles.title}>Ask Vela</Text>
           <Text style={styles.subtitle}>Select a medication to discuss</Text>
@@ -153,7 +178,7 @@ export default function ChatScreen() {
                 onPress={() => handleSelectMed(med)}
               >
                 <View style={styles.medIcon}>
-                   <Text style={{ fontSize: 24 }}>💊</Text>
+                  <MedicationAvatar />
                 </View>
                 <View style={styles.medInfo}>
                   <Text style={styles.medName}>{med.name}</Text>
@@ -194,9 +219,9 @@ export default function ChatScreen() {
           ref={(ref) => ref?.scrollToEnd({ animated: true })}
         >
           <View style={styles.avatarContainer}>
-             <Animated.View style={[styles.flameCircle, { transform: [{ translateY: floatY }] }]}>
-                <Text style={{ fontSize: 40 }}>🔥</Text>
-             </Animated.View>
+            <Animated.View style={{ transform: [{ translateY: floatY }] }}>
+              <VelaAvatar />
+            </Animated.View>
           </View>
 
           {messages.map((msg) => (
@@ -265,10 +290,6 @@ const styles = StyleSheet.create({
     paddingTop: 60,
     paddingBottom: 40,
   },
-  largeEmoji: {
-    fontSize: 80,
-    marginBottom: 20,
-  },
   title: {
     fontFamily: theme.fonts.extraBold,
     fontSize: theme.fontSizes.xl,
@@ -315,6 +336,33 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     borderWidth: 1,
     borderColor: theme.colors.border,
+  },
+  medAvatarWrap: {
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    backgroundColor: theme.colors.accentSoft,
+    borderWidth: 1,
+    borderColor: theme.colors.accent,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  medCapsule: {
+    width: 18,
+    height: 10,
+    borderRadius: 6,
+    overflow: "hidden",
+    borderWidth: 1,
+    borderColor: theme.colors.primary,
+    flexDirection: "row",
+  },
+  medCapsuleLeft: {
+    flex: 1,
+    backgroundColor: theme.colors.surface,
+  },
+  medCapsuleRight: {
+    flex: 1,
+    backgroundColor: theme.colors.accent,
   },
   medInfo: {
     flex: 1,
@@ -384,7 +432,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     marginVertical: 20,
   },
-  flameCircle: {
+  velaAvatarWrap: {
     width: 90,
     height: 90,
     borderRadius: 45,
@@ -394,6 +442,37 @@ const styles = StyleSheet.create({
     ...theme.shadows.card,
     borderWidth: 2,
     borderColor: theme.colors.accentLight,
+  },
+  velaFlame: {
+    width: 34,
+    height: 40,
+    borderTopLeftRadius: 22,
+    borderTopRightRadius: 22,
+    borderBottomLeftRadius: 22,
+    borderBottomRightRadius: 10,
+    backgroundColor: theme.colors.accent,
+    transform: [{ rotate: "8deg" }],
+  },
+  velaFlameCore: {
+    width: 13,
+    height: 15,
+    borderRadius: 9,
+    backgroundColor: theme.colors.surface,
+    position: "absolute",
+    top: 14,
+    left: 10,
+  },
+  velaFace: {
+    position: "absolute",
+    top: 42,
+    flexDirection: "row",
+    gap: 4,
+  },
+  velaEye: {
+    width: 5,
+    height: 5,
+    borderRadius: 3,
+    backgroundColor: theme.colors.primary,
   },
   messageRow: {
     marginVertical: 4,
