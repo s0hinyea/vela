@@ -25,6 +25,14 @@ import type {
 const BASE_URL = process.env.EXPO_PUBLIC_API_URL ?? "http://localhost:3000";
 const CHAT_REQUEST_TIMEOUT_MS = 15000;
 
+function getDeviceTimeZone(): string | null {
+  try {
+    return Intl.DateTimeFormat().resolvedOptions().timeZone || null;
+  } catch {
+    return null;
+  }
+}
+
 function createChatRequestId() {
   return `chat-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
 }
@@ -98,15 +106,18 @@ export async function fetchTodaySchedule(
 ): Promise<{ date: string; slots: DoseSlot[]; allTaken: boolean; nextSlot: DoseSlot | null }> {
   if (DEMO_MODE) {
     const slots = allDone ? MOCK_ALL_DONE_SLOTS : MOCK_TODAY_SLOTS;
-    const allTaken = slots.every((s) => s.status === "taken" || s.status === "missed");
+    const allTaken = slots.length > 0 && slots.every((s) => s.status === "taken");
     return mockDelay({
       date: new Date().toISOString().slice(0, 10),
       slots,
       allTaken,
-      nextSlot: slots.find((s) => s.status === "due") ?? null,
+      nextSlot: slots.find((s) => s.status === "due") ?? slots.find((s) => s.status === "upcoming") ?? null,
     });
   }
-  const res = await fetch(`${BASE_URL}/api/schedule/today?profileId=${profileId}`);
+  const params = new URLSearchParams({ profileId });
+  const timeZone = getDeviceTimeZone();
+  if (timeZone) params.set("timeZone", timeZone);
+  const res = await fetch(`${BASE_URL}/api/schedule/today?${params.toString()}`);
   const json = await res.json();
   if (!json.success) throw new Error(json.error);
   return json.data;
@@ -238,10 +249,11 @@ export async function logDose(payload: {
   takenAt: string;
 }): Promise<void> {
   if (DEMO_MODE) return mockDelay(undefined as unknown as void, 300);
+  const timeZone = getDeviceTimeZone();
   const res = await fetch(`${BASE_URL}/api/doses/log`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(payload),
+    body: JSON.stringify({ ...payload, timeZone }),
   });
   const json = await res.json();
   if (!json.success) throw new Error(json.error);
@@ -317,8 +329,11 @@ export async function fetchNotificationSchedule(profileId: string): Promise<{
     });
   }
 
+  const params = new URLSearchParams({ profileId });
+  const timeZone = getDeviceTimeZone();
+  if (timeZone) params.set("timeZone", timeZone);
   const res = await fetch(
-    `${BASE_URL}/api/notifications/schedule?profileId=${profileId}`
+    `${BASE_URL}/api/notifications/schedule?${params.toString()}`
   );
   const json = await res.json();
   if (!json.success) throw new Error(json.error);

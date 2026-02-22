@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSupabase } from "@/lib/supabase";
 import { translateNotificationTexts } from "@/lib/gemini";
+import { getDateTimeInZone } from "@/lib/datetime";
 
 // GET /api/notifications/schedule?profileId=xxx
 // Returns grouped notification schedule — medications at the same time
@@ -8,6 +9,7 @@ import { translateNotificationTexts } from "@/lib/gemini";
 //   heads_up (-30 min), action (at dose time), follow_up (+15 min)
 export async function GET(request: NextRequest) {
     const profileId = request.nextUrl.searchParams.get("profileId");
+    const timeZone = request.nextUrl.searchParams.get("timeZone");
 
     if (!profileId) {
         return NextResponse.json(
@@ -49,7 +51,7 @@ export async function GET(request: NextRequest) {
     }
 
     // 3. Get today's dose logs
-    const today = new Date().toISOString().split("T")[0];
+    const { today } = getDateTimeInZone(timeZone);
     const { data: logs } = await supabase
         .from("dose_logs")
         .select()

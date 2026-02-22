@@ -1,11 +1,19 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSupabase } from "@/lib/supabase";
+import { getDateTimeInZone } from "@/lib/datetime";
 
 // POST /api/doses/log — Mark a dose as taken
 export async function POST(request: NextRequest) {
     try {
         const body = await request.json();
-        const { doseSlotId, profileId, medicationId, takenAt, scheduledTime: scheduledTimeFromBody } = body;
+        const {
+            doseSlotId,
+            profileId,
+            medicationId,
+            takenAt,
+            scheduledTime: scheduledTimeFromBody,
+            timeZone,
+        } = body;
 
         if (!profileId || !medicationId || !takenAt) {
             return NextResponse.json(
@@ -18,7 +26,7 @@ export async function POST(request: NextRequest) {
         }
 
         const supabase = getSupabase();
-        const today = new Date().toISOString().split("T")[0];
+        const { today } = getDateTimeInZone(typeof timeZone === "string" ? timeZone : null);
 
         // Prefer explicit scheduledTime from client, then parse HH:MM from slot id.
         // This avoids UUID parsing issues when med ids include dashes.

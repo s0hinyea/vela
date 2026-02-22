@@ -55,9 +55,7 @@ export const useVelaStore = create<VelaStore>((set) => ({
       const nextUntaken = updated.find(
         (s) => s.status === "due" || s.status === "upcoming"
       ) ?? null;
-      const allTaken = updated.every(
-        (s) => s.status === "taken" || s.status === "missed"
-      );
+      const allTaken = updated.length > 0 && updated.every((s) => s.status === "taken");
       return { todaySlots: updated, currentSlot: nextUntaken, allTaken };
     }),
 

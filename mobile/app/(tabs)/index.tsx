@@ -79,6 +79,13 @@ export default function NowScreen() {
     ]).start();
   }, [currentSlot?.id]);
 
+  const getStatusLabel = (status: string) => {
+    if (status === "taken") return t.taken;
+    if (status === "missed") return "Missed";
+    if (status === "due") return "Due now";
+    return t.upcoming;
+  };
+
   // If everything is done → Render an inline "Done" card instead of redirecting
   if (allTaken) {
     return (
@@ -117,8 +124,8 @@ export default function NowScreen() {
 
   // No slots at all — empty state (brand new user)
   if (!currentSlot) {
-    const taken = todaySlots.filter((s) => s.status === "taken");
     const upcoming = todaySlots.filter((s) => s.status === "upcoming");
+    const missed = todaySlots.filter((s) => s.status === "missed");
 
     return (
       <SafeAreaView style={styles.container}>
@@ -149,7 +156,9 @@ export default function NowScreen() {
             <View>
               <Text style={styles.caughtUpTitle}>{t.allCaughtUp}</Text>
               <Text style={styles.caughtUpSub}>
-                {upcoming.length > 0
+                {missed.length > 0
+                  ? "Some doses were missed earlier today"
+                  : upcoming.length > 0
                   ? t.nextMedLater
                   : todaySlots.length > 0
                     ? t.noMoreMedsToday
@@ -179,6 +188,8 @@ export default function NowScreen() {
                     style={[
                       styles.statusDot,
                       slot.status === "taken" && styles.statusDotTaken,
+                      slot.status === "due" && styles.statusDotDue,
+                      slot.status === "missed" && styles.statusDotMissed,
                       slot.status === "upcoming" && styles.statusDotUpcoming,
                     ]}
                   >
@@ -203,6 +214,8 @@ export default function NowScreen() {
                     style={[
                       styles.statusBadge,
                       slot.status === "taken" && styles.statusBadgeTaken,
+                      slot.status === "due" && styles.statusBadgeDue,
+                      slot.status === "missed" && styles.statusBadgeMissed,
                       slot.status === "upcoming" && styles.statusBadgeUpcoming,
                     ]}
                   >
@@ -210,10 +223,12 @@ export default function NowScreen() {
                       style={[
                         styles.statusBadgeText,
                         slot.status === "taken" && styles.statusBadgeTextTaken,
+                        slot.status === "due" && styles.statusBadgeTextDue,
+                        slot.status === "missed" && styles.statusBadgeTextMissed,
                         slot.status === "upcoming" && styles.statusBadgeTextUpcoming,
                       ]}
                     >
-                      {slot.status === "taken" ? t.taken : t.upcoming}
+                      {getStatusLabel(slot.status)}
                     </Text>
                   </View>
                 </View>
@@ -263,9 +278,12 @@ export default function NowScreen() {
       const remaining = todaySlots.filter(
         (s) => s.status === "due" || s.status === "upcoming"
       ).length;
+      const hasMissed = todaySlots.some((s) => s.status === "missed");
 
       if (remaining === 1) { // 1 before we mark it taken, meaning 0 after
-        router.push("/done");
+        if (!hasMissed) {
+          router.push("/done");
+        }
       }
     } catch (e) {
       console.error("Failed to log dose", e);
@@ -409,6 +427,7 @@ export default function NowScreen() {
                   styles.dot,
                   slot.status === "taken" && styles.dotTaken,
                   slot.status === "due" && styles.dotDue,
+                  slot.status === "missed" && styles.dotMissed,
                   slot.status === "upcoming" && styles.dotUpcoming,
                 ]}
               />
@@ -607,6 +626,12 @@ const styles = StyleSheet.create({
   statusDotTaken: {
     backgroundColor: theme.colors.success,
   },
+  statusDotDue: {
+    backgroundColor: theme.colors.accent,
+  },
+  statusDotMissed: {
+    backgroundColor: theme.colors.danger,
+  },
   statusDotUpcoming: {
     backgroundColor: theme.colors.borderLight,
   },
@@ -641,6 +666,12 @@ const styles = StyleSheet.create({
   statusBadgeTaken: {
     backgroundColor: theme.colors.successSoft,
   },
+  statusBadgeDue: {
+    backgroundColor: theme.colors.accentSoft,
+  },
+  statusBadgeMissed: {
+    backgroundColor: theme.colors.dangerSoft,
+  },
   statusBadgeUpcoming: {
     backgroundColor: theme.colors.accentSoft,
   },
@@ -651,6 +682,12 @@ const styles = StyleSheet.create({
   },
   statusBadgeTextTaken: {
     color: theme.colors.success,
+  },
+  statusBadgeTextDue: {
+    color: theme.colors.accent,
+  },
+  statusBadgeTextMissed: {
+    color: theme.colors.danger,
   },
   statusBadgeTextUpcoming: {
     color: theme.colors.accent,
@@ -809,6 +846,7 @@ const styles = StyleSheet.create({
   },
   dotTaken: { backgroundColor: theme.colors.success },
   dotDue: { backgroundColor: theme.colors.accent },
+  dotMissed: { backgroundColor: theme.colors.danger },
   dotUpcoming: { backgroundColor: theme.colors.borderLight },
   timelineName: {
     fontFamily: theme.fonts.medium,
