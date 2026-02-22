@@ -29,6 +29,11 @@ function createChatRequestId() {
   return `chat-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
 }
 
+function getNormalizedApiBase() {
+  const rawBase = (BASE_URL || "").trim().replace(/\/+$/, "");
+  return rawBase.replace(/\/api$/, "");
+}
+
 // ─── Profile ──────────────────────────────────────────────────────────────────
 export async function fetchProfile(profileId: string): Promise<Profile> {
   if (DEMO_MODE) return mockDelay(MOCK_PROFILE);
@@ -328,17 +333,23 @@ export async function askVelaChat(
   profileId: string,
   medicationId: string,
   question: string
-): Promise<{ answer: string; remaining: number }> {
+): Promise<{
+  answer: string;
+  remaining: number;
+  risk?: "low" | "medium" | "high" | "unknown";
+  limitReached?: boolean;
+}> {
   if (DEMO_MODE) {
     return mockDelay({
       answer: "I've checked your records for " + question.substring(0, 10) + "... and it seems safe to take with food. Please speak to your doctor if you feel any nausea!",
       remaining: 2,
+      risk: "low" as const,
     }, 1200);
   }
 
   const rawBase = (BASE_URL || "").trim().replace(/\/+$/, "");
   const baseNoApiChat = rawBase.replace(/\/api\/chat$/, "");
-  const baseNoApi = rawBase.replace(/\/api$/, "");
+  const baseNoApi = getNormalizedApiBase();
   const seedCandidates = [
     rawBase.endsWith("/api/chat") ? rawBase : `${baseNoApi}/api/chat`,
     `${baseNoApiChat}/api/chat`,
@@ -451,6 +462,19 @@ export async function askVelaChat(
       } catch {
         errJson = null;
       }
+
+      // Daily limit should be a normal in-chat response, not an exception.
+      if (res.status === 429) {
+        return {
+          answer:
+            errJson?.error ||
+            "Daily limit reached. You can ask 3 questions per day to keep Vela healthy!",
+          remaining: 0,
+          risk: "unknown",
+          limitReached: true,
+        };
+      }
+
       if (errJson?.error) {
         throw new Error(errJson.error);
       } else {
@@ -471,4 +495,33 @@ export async function askVelaChat(
     );
     throw err;
   }
+}
+
+export async function resetVelaChatLimit(
+  profileId: string
+): Promise<{ remaining: number; deleted: number }> {
+  if (DEMO_MODE) {
+    return mockDelay({ remaining: 3, deleted: 3 }, 350);
+  }
+
+  const base = getNormalizedApiBase();
+  const res = await fetch(`${base}/api/chat/reset-limit`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ profileId }),
+  });
+
+  const text = await res.text();
+  let json: any = null;
+  try {
+    json = text ? JSON.parse(text) : null;
+  } catch {
+    json = null;
+  }
+
+  if (!res.ok || !json?.success) {
+    throw new Error(json?.error || `Failed to reset limit (${res.status}).`);
+  }
+
+  return json.data as { remaining: number; deleted: number };
 }
