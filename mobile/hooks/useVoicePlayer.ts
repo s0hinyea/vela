@@ -14,7 +14,7 @@
  *   - Still sounds good enough for a demo
  */
 import { useRef, useState, useCallback, useEffect } from "react";
-import { Audio } from "expo-av";
+import { Audio, InterruptionModeIOS, InterruptionModeAndroid } from "expo-av";
 import * as Speech from "expo-speech";
 
 interface PlayOptions {
@@ -60,9 +60,14 @@ export function useVoicePlayer() {
       try {
         if (audioUrl) {
           // ─── ElevenLabs audio (production path) ───────────────────────
+          // Force audio to play loudly through the main speaker, ignoring the hardware mute switch
           await Audio.setAudioModeAsync({
+            allowsRecordingIOS: false,
             playsInSilentModeIOS: true,
-            staysActiveInBackground: false,
+            staysActiveInBackground: true,
+            interruptionModeIOS: InterruptionModeIOS.DoNotMix,
+            interruptionModeAndroid: InterruptionModeAndroid.DoNotMix,
+            playThroughEarpieceAndroid: false,
           });
 
           const { sound } = await Audio.Sound.createAsync(

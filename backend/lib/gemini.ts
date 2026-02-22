@@ -291,17 +291,18 @@ export async function askChatbot(
     const response = await getGemini().models.generateContent({
         model: MODEL,
         contents: [
-            { 
-                role: "user", 
+            {
+                role: "user",
                 parts: [
                     { text: `System Instruction: ${prompt}` },
                     { text: `User Question: ${question}` }
-                ] 
+                ]
             }
         ],
     });
 
     return response.text?.trim() ?? "I'm sorry, I couldn't process that. Please try again soon.";
+}
 
 // ---------------------------------------------------------------------------
 // 5. Conversational Audio Script Generation — weaves instructions naturally
