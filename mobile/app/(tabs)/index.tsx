@@ -80,7 +80,7 @@ export default function NowScreen() {
           </View>
         </View>
 
-        <View style={styles.emptyContainer}>
+        <View style={{ flex: 1, justifyContent: "center", paddingHorizontal: theme.spacing.xl }}>
           <View style={styles.emptyStateCard}>
             <Text style={styles.emptyStateEmoji}>🌙</Text>
             <Text style={styles.emptyStateTitle}>All done for today</Text>
@@ -104,6 +104,9 @@ export default function NowScreen() {
 
   // No slots at all — empty state (brand new user)
   if (!currentSlot) {
+    const taken = todaySlots.filter((s) => s.status === "taken");
+    const upcoming = todaySlots.filter((s) => s.status === "upcoming");
+
     return (
       <SafeAreaView style={styles.container}>
         <View style={styles.header}>
@@ -134,7 +137,6 @@ export default function NowScreen() {
               </Text>
             </View>
           </View>
-        </View>
 
           {/* Empty state if nothing scheduled at all */}
           {todaySlots.length === 0 && (

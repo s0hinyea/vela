@@ -14,6 +14,9 @@ import {
   Alert,
   Animated,
   TextInput,
+  LayoutAnimation,
+  Platform,
+  UIManager,
 } from "react-native";
 
 // Enable LayoutAnimation on Android
@@ -47,18 +50,50 @@ export default function ConfirmScreen() {
 
   const [warnings, setWarnings] = useState<InteractionWarning[]>([]);
   const [scheduleNotes, setScheduleNotes] = useState<string | null>(null);
+  const [dosageWarning, setDosageWarning] = useState<string | null>(null);
   const [checkingInteractions, setCheckingInteractions] = useState(false);
   const [showMoreDetails, setShowMoreDetails] = useState(false);
   const [saving, setSaving] = useState(false);
 
-  // Editable fields
-  const [editableInstructions, setEditableInstructions] = useState(scanned?.instructions || "");
-  const [editableTimes, setEditableTimes] = useState<string[]>(scanned?.suggestedTimes || []);
+  // Convert HH:MM string to local Date object for the picker
+  const parseTime = (timeStr: string) => {
+    const [h, m] = timeStr.split(":");
+    const d = new Date();
+    d.setHours(parseInt(h || "8", 10), parseInt(m || "0", 10), 0, 0);
+    return d;
+  };
 
-  const updateTime = (index: number, val: string) => {
+  // Convert Date object back to HH:MM for backend
+  const formatTime = (d: Date) => {
+    return d.toLocaleTimeString("en-US", { hour12: false, hour: "2-digit", minute: "2-digit" });
+  };
+
+  const [editableInstructions, setEditableInstructions] = useState(scanned?.instructions || "");
+  const [editableTimes, setEditableTimes] = useState<Date[]>(
+    (scanned?.suggestedTimes || []).map(parseTime)
+  );
+  const [editStartDate, setEditStartDate] = useState(
+    scanned?.startDate ? new Date(scanned.startDate + "T00:00:00") : new Date()
+  );
+  const [editEndDate, setEditEndDate] = useState(
+    scanned?.endDate ? new Date(scanned.endDate + "T00:00:00") : new Date(Date.now() + 30 * 24 * 60 * 60 * 1000)
+  );
+
+  const updateTime = (index: number, newDate: Date) => {
     const newTimes = [...editableTimes];
-    newTimes[index] = val;
+    newTimes[index] = newDate;
     setEditableTimes(newTimes);
+  };
+
+  const addTimeSlot = () => {
+    const d = new Date();
+    d.setHours(12 + editableTimes.length * 4, 0, 0, 0);
+    setEditableTimes([...editableTimes, d]);
+  };
+
+  const removeTimeSlot = (index: number) => {
+    if (editableTimes.length <= 1) return;
+    setEditableTimes(editableTimes.filter((_, i) => i !== index));
   };
 
   // Animations
@@ -76,23 +111,53 @@ export default function ConfirmScreen() {
   useEffect(() => {
     if (!scanned) return;
     const existing = medications.map((m) => m.name);
-    if (existing.length === 0) return;
+    if (existing.length === 0 || !editableName.trim()) return;
 
-    setCheckingInteractions(true);
-    checkInteractions(existing, scanned.name)
-      .then((result) => {
-        setWarnings(result.warnings);
-        setScheduleNotes(result.scheduleNotes);
-        // Animate warnings in
-        Animated.timing(warningFade, {
-          toValue: 1,
-          duration: 400,
-          useNativeDriver: true,
-        }).start();
-      })
-      .catch(console.error)
-      .finally(() => setCheckingInteractions(false));
-  }, []);
+    // Debounce the check to avoid spamming the API while typing
+    const timeoutId = setTimeout(() => {
+      setCheckingInteractions(true);
+      checkInteractions(existing, editableName.trim(), editableDosage.trim(), scanned.frequency)
+        .then((result) => {
+          setWarnings(result.warnings);
+          setScheduleNotes(result.scheduleNotes);
+          if (result.dosageWarning) setDosageWarning(result.dosageWarning);
+          else setDosageWarning(null); // Clear previous warning if new check passes
+
+          // Auto-append recommendations to instructions (summarized to one sentence)
+          const additions: string[] = [];
+          result.warnings.forEach((w) => {
+            if (w.recommendation) {
+              const firstSentence = w.recommendation.split(/[.!?]/).filter(Boolean)[0];
+              if (firstSentence) additions.push(firstSentence.trim() + ".");
+            }
+          });
+          if (result.scheduleNotes) additions.push(result.scheduleNotes);
+          
+          if (additions.length > 0) {
+            setEditableInstructions((prev) => {
+              // Strip out old auto-added notes before appending new ones to prevent stacking
+              const cleanPrev = prev.split("\n\n⚠️ Safety notes:\n")[0];
+              const separator = cleanPrev.trim() ? "\n\n⚠️ Safety notes:\n" : "";
+              return cleanPrev.trim() + separator + additions.join("\n");
+            });
+          } else {
+             // If there are no new additions, strip out the safety notes block
+             setEditableInstructions((prev) => prev.split("\n\n⚠️ Safety notes:\n")[0].trim());
+          }
+
+          // Animate warnings in
+          Animated.timing(warningFade, {
+            toValue: 1,
+            duration: 400,
+            useNativeDriver: true,
+          }).start();
+        })
+        .catch(console.error)
+        .finally(() => setCheckingInteractions(false));
+    }, 800); // 800ms debounce
+
+    return () => clearTimeout(timeoutId);
+  }, [editableName, editableDosage]);
 
   const handleConfirm = async () => {
     if (!scanned || !profile) return;
@@ -100,9 +165,9 @@ export default function ConfirmScreen() {
     try {
       await saveMedication({
         profileId: profile.id,
-        scanned: { ...scanned, instructions: editableInstructions },
+        scanned: { ...scanned, name: editableName.trim(), dosage: editableDosage.trim(), instructions: editableInstructions },
         interactions: warnings,
-        finalTimes: editableTimes.filter(t => t.trim().length > 0), // Filter out empties
+        finalTimes: editableTimes.map(formatTime),
       });
       router.replace("/(tabs)");
     } catch {
@@ -209,24 +274,6 @@ export default function ConfirmScreen() {
                   onChangeText={setEditableInstructions}
                   multiline
                 />
-              </View>
-            </View>
-            
-            <View style={styles.detailItem}>
-              <Text style={styles.detailIcon}>⏰</Text>
-              <View style={{ flex: 1 }}>
-                <Text style={styles.detailLabel}>Scheduled Times (Tap to edit)</Text>
-                {editableTimes.map((t, i) => (
-                  <View key={i} style={styles.timeInputRow}>
-                    <TextInput
-                      style={styles.timeInput}
-                      value={t}
-                      onChangeText={(val) => updateTime(i, val)}
-                      placeholder="HH:MM"
-                      keyboardType="numbers-and-punctuation"
-                    />
-                  </View>
-                ))}
               </View>
             </View>
             
@@ -547,8 +594,75 @@ const styles = StyleSheet.create({
     borderColor: theme.colors.border,
     marginTop: theme.spacing.xs,
   },
+  timesHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 4,
+  },
+  timesActions: {
+    flexDirection: "row",
+    gap: 6,
+  },
+  timeActionBtn: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    borderWidth: 2,
+    borderColor: theme.colors.primary,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  timeActionText: {
+    fontFamily: theme.fonts.bold,
+    fontSize: 16,
+    color: theme.colors.primary,
+    lineHeight: 18,
+  },
+  timeSlotLabel: {
+    fontFamily: theme.fonts.medium,
+    fontSize: theme.fontSizes.sm,
+    color: theme.colors.textSecondary,
+    minWidth: 55,
+  },
+  // Dosage warning
+  dosageWarningCard: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: theme.spacing.sm,
+    backgroundColor: "#FFF8E1",
+    borderRadius: theme.radii.lg,
+    padding: theme.spacing.md,
+    borderWidth: 1,
+    borderColor: "#FFD54F",
+    marginBottom: theme.spacing.md,
+  },
+  showMoreBtn: {
+    marginTop: theme.spacing.sm,
+    paddingVertical: theme.spacing.sm,
+    alignItems: "center",
+  },
+  showMoreBtnText: {
+    fontFamily: theme.fonts.medium,
+    fontSize: theme.fontSizes.sm,
+    color: theme.colors.accent,
+  },
+  dosageWarningIcon: { fontSize: 22 },
+  dosageWarningTitle: {
+    fontFamily: theme.fonts.bold,
+    fontSize: theme.fontSizes.sm,
+    color: "#E65100",
+    marginBottom: 2,
+  },
+  dosageWarningText: {
+    fontFamily: theme.fonts.regular,
+    fontSize: theme.fontSizes.xs,
+    color: "#BF360C",
+    lineHeight: 20,
+  },
   timeInputRow: {
     flexDirection: "row",
+    alignItems: "center",
     gap: theme.spacing.sm,
     marginTop: theme.spacing.xs,
     flexWrap: "wrap",
