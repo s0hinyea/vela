@@ -17,6 +17,7 @@ import { useNotifications } from "../hooks/useNotifications";
 import { DEMO_MODE } from "../mocks";
 import { fetchMedications, fetchTodaySchedule } from "../api";
 import { useVelaStore } from "../store/useVelaStore";
+import { VelaAvatar } from "../components/VelaAvatar";
 
 export default function RootLayout() {
   const [fontsLoaded] = useFonts({
@@ -287,67 +288,10 @@ export default function RootLayout() {
             >
               <Animated.View
                 style={{
-                  width: 84,
-                  height: 84,
-                  borderRadius: 42,
-                  backgroundColor: theme.colors.surface,
-                  borderWidth: 2,
-                  borderColor: theme.colors.accentLight,
-                  alignItems: "center",
-                  justifyContent: "center",
-                  ...theme.shadows.card,
                   transform: [{ rotate }],
                 }}
               >
-                <View
-                  style={{
-                    width: 30,
-                    height: 34,
-                    borderTopLeftRadius: 18,
-                    borderTopRightRadius: 18,
-                    borderBottomLeftRadius: 18,
-                    borderBottomRightRadius: 8,
-                    backgroundColor: theme.colors.accent,
-                    transform: [{ rotate: "8deg" }],
-                  }}
-                >
-                  <View
-                    style={{
-                      width: 12,
-                      height: 13,
-                      borderRadius: 7,
-                      backgroundColor: theme.colors.surface,
-                      position: "absolute",
-                      top: 12,
-                      left: 9,
-                    }}
-                  />
-                </View>
-                <View
-                  style={{
-                    position: "absolute",
-                    top: 38,
-                    flexDirection: "row",
-                    gap: 4,
-                  }}
-                >
-                  <View
-                    style={{
-                      width: 4,
-                      height: 4,
-                      borderRadius: 2,
-                      backgroundColor: theme.colors.primary,
-                    }}
-                  />
-                  <View
-                    style={{
-                      width: 4,
-                      height: 4,
-                      borderRadius: 2,
-                      backgroundColor: theme.colors.primary,
-                    }}
-                  />
-                </View>
+                <VelaAvatar />
               </Animated.View>
             </View>
           </View>
