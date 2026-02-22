@@ -143,15 +143,17 @@ export default function ConfirmScreen() {
           if (result.dosageWarning) setDosageWarning(result.dosageWarning);
           else setDosageWarning(null); // Clear previous warning if new check passes
 
-          // Auto-append recommendations to instructions (summarized to one sentence)
+          // Auto-append only critical recommendations to instructions to save space
           const additions: string[] = [];
           result.warnings.forEach((w) => {
-            if (w.recommendation) {
-              const firstSentence = w.recommendation.split(/[.!?]/).filter(Boolean)[0];
-              if (firstSentence) additions.push(firstSentence.trim() + ".");
+            if (w.severity === "MAJOR" || w.severity === "MODERATE") {
+              if (w.recommendation) {
+                const firstSentence = w.recommendation.split(/[.!?]/).filter(Boolean)[0];
+                if (firstSentence) additions.push("• " + firstSentence.trim() + ".");
+              }
             }
           });
-          if (result.scheduleNotes) additions.push(result.scheduleNotes);
+          // We removed scheduleNotes from being pushed here because it is too verbose
           
           if (additions.length > 0) {
             setEditableInstructions((prev) => {
@@ -289,7 +291,7 @@ export default function ConfirmScreen() {
               <View style={{ flex: 1 }}>
                 <Text style={styles.detailLabel}>Instructions (Tap to edit)</Text>
                 <TextInput
-                  style={styles.inlineInput}
+                  style={styles.instructionInput}
                   value={editableInstructions}
                   onChangeText={setEditableInstructions}
                   multiline
@@ -434,7 +436,7 @@ export default function ConfirmScreen() {
                     </View>
                   </View>
                   <Text style={styles.warningDrugs}>
-                    {w.drugs[0]} + {w.drugs[1]}
+                    {w.drugs[0]}{w.drugs[1] ? ` + ${w.drugs[1]}` : ''}
                   </Text>
                   <Text style={styles.warningExplanation}>{w.explanation}</Text>
                   <View style={styles.recRow}>
@@ -615,6 +617,18 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: theme.colors.border,
     marginTop: theme.spacing.xs,
+  },
+  instructionInput: {
+    fontFamily: theme.fonts.medium,
+    fontSize: 13, // Smaller font size so it doesn't take up too much space
+    color: theme.colors.textPrimary,
+    backgroundColor: theme.colors.surface,
+    padding: theme.spacing.sm,
+    borderRadius: theme.radii.sm,
+    borderWidth: 1,
+    borderColor: theme.colors.border,
+    marginTop: theme.spacing.xs,
+    minHeight: 50,
   },
   timesHeader: {
     flexDirection: "row",
