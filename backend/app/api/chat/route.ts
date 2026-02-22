@@ -2,6 +2,24 @@ import { NextRequest, NextResponse } from "next/server";
 import { getSupabase } from "@/lib/supabase";
 import { askChatbot } from "@/lib/gemini";
 
+export const dynamic = "force-dynamic";
+
+export async function GET() {
+    return NextResponse.json(
+        { success: false, error: "Method not allowed. Use POST /api/chat." },
+        { status: 405 }
+    );
+}
+
+export async function OPTIONS() {
+    return new NextResponse(null, {
+        status: 204,
+        headers: {
+            Allow: "POST, OPTIONS",
+        },
+    });
+}
+
 export async function POST(request: NextRequest) {
     try {
         const body = await request.json();
@@ -30,17 +48,11 @@ export async function POST(request: NextRequest) {
 
         if (countError) {
             console.error("[chat] rate-limit query failed:", countError);
-            return NextResponse.json(
-                {
-                    success: false,
-                    error: "Failed to verify query limit.",
-                    details: countError.message,
-                },
-                { status: 500 }
-            );
         }
 
-        if (count !== null && count >= 3) {
+        const dailyCount = countError ? null : count ?? 0;
+
+        if (dailyCount !== null && dailyCount >= 3) {
             return NextResponse.json(
                 { 
                     success: false, 
@@ -69,6 +81,9 @@ export async function POST(request: NextRequest) {
         const medInfo = {
             name: med.name,
             dosage: med.dosage,
+            form: med.form,
+            frequency: med.frequency,
+            scheduledTimes: med.scheduled_times,
             instructions: med.instructions,
             warnings: med.interactions?.map((i: any) => i.explanation) ?? [],
         };
@@ -94,7 +109,8 @@ export async function POST(request: NextRequest) {
             success: true,
             data: {
                 answer,
-                remaining: 3 - (count ?? 0) - 1
+                // If rate-limit lookup failed, keep chat available and avoid blocking the experience.
+                remaining: dailyCount === null ? 3 : Math.max(0, 3 - dailyCount - 1)
             }
         });
 

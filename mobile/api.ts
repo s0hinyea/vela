@@ -331,18 +331,35 @@ export async function askVelaChat(
     }, 1200);
   }
 
-  const url = `${BASE_URL}/api/chat`;
+  const normalizedBase = BASE_URL.replace(/\/+$/, "").replace(/\/api$/, "");
+  const url = `${normalizedBase}/api/chat`;
   console.log(`[ChatAPI] POSTing to ${url} for profile ${profileId}`);
 
   try {
-    const res = await fetch(url, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ profileId, medicationId, question }),
-    });
+    const payload = JSON.stringify({ profileId, medicationId, question });
 
-    const text = await res.text();
-    console.log(`[ChatAPI] Status: ${res.status}, Body length: ${text.length}`);
+    const postChat = async (targetUrl: string) => {
+      const res = await fetch(targetUrl, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: payload,
+      });
+      const text = await res.text();
+      return { res, text };
+    };
+
+    let { res, text } = await postChat(url);
+    console.log(
+      `[ChatAPI] Status: ${res.status}, Body length: ${text.length}, redirected: ${res.redirected}, finalUrl: ${res.url}`
+    );
+
+    // Some hosts/proxies can redirect POST -> GET, which lands on a 405.
+    // Retry once with a direct POST to the final URL.
+    if (res.status === 405 && !text && res.redirected && res.url && res.url !== url) {
+      console.warn(`[ChatAPI] 405 after redirect. Retrying direct POST to ${res.url}`);
+      ({ res, text } = await postChat(res.url));
+      console.log(`[ChatAPI] Retry status: ${res.status}, body length: ${text.length}`);
+    }
     
     if (!res.ok) {
       let errJson: any = null;
