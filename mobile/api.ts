@@ -318,3 +318,24 @@ export async function updateLanguage(
   if (!json.success) throw new Error(json.error);
   return json.data;
 }
+// ─── Chat ───────────────────────────────────────────────────────────────────
+export async function askVelaChat(
+  profileId: string,
+  medicationId: string,
+  question: string
+): Promise<{ answer: string; remaining: number }> {
+  if (DEMO_MODE) {
+    return mockDelay({
+      answer: "I've checked your records for " + question.substring(0, 10) + "... and it seems safe to take with food. Please speak to your doctor if you feel any nausea!",
+      remaining: 2,
+    }, 1200);
+  }
+  const res = await fetch(`${BASE_URL}/api/chat`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ profileId, medicationId, question }),
+  });
+  const json = await res.json();
+  if (!json.success) throw new Error(json.error);
+  return json.data;
+}

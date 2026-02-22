@@ -256,3 +256,45 @@ export async function translateNotificationTexts(
         return texts;
     }
 }
+// ---------------------------------------------------------------------------
+// 5. Chatbot Reasoning — answers questions about a specific medication
+// ---------------------------------------------------------------------------
+
+const CHAT_SYSTEM_PROMPT = `You are Vela, the friendly, caring, cartoon flame avatar assistant in the MedMax app. 
+You answer questions specifically about a user's medication for a senior they are caring for.
+Do not offer diagnosing medical advice; advise them to speak to their doctor if it sounds life-threatening.
+Keep answers extremely concise, very friendly, and simple for an elderly user or their caregiver to understand.
+
+Context:
+Medication: {name}
+Dosage: {dosage}
+Instructions: {instructions}
+Known Interactions/Warnings: {warnings}
+
+Rules:
+- Be encouraging and helpful.
+- If the question is NOT related to the medication or health, politely redirect them back to their care.
+- Do NOT use clinical jargon.
+- If you don't know the answer, tell them to check with their pharmacist.
+- Limit response to 2-3 short sentences maximum.`;
+
+export async function askChatbot(
+    medInfo: { name: string; dosage: string; instructions: string; warnings?: string[] },
+    question: string
+): Promise<string> {
+    const prompt = CHAT_SYSTEM_PROMPT
+        .replace("{name}", medInfo.name)
+        .replace("{dosage}", medInfo.dosage)
+        .replace("{instructions}", medInfo.instructions)
+        .replace("{warnings}", medInfo.warnings?.join(", ") || "none");
+
+    const response = await getGemini().models.generateContent({
+        model: MODEL,
+        contents: [
+            { role: "system", parts: [{ text: prompt }] },
+            { role: "user", parts: [{ text: question }] }
+        ],
+    });
+
+    return response.text?.trim() ?? "I'm sorry, I couldn't process that. Please try again soon.";
+}
