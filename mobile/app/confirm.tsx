@@ -14,7 +14,15 @@ import {
   Alert,
   Animated,
   TextInput,
+  LayoutAnimation,
+  Platform,
+  UIManager,
 } from "react-native";
+
+// Enable LayoutAnimation on Android
+if (Platform.OS === "android" && UIManager.setLayoutAnimationEnabledExperimental) {
+  UIManager.setLayoutAnimationEnabledExperimental(true);
+}
 import { useRouter, useLocalSearchParams } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
 import DateTimePicker from "@react-native-community/datetimepicker";
@@ -36,9 +44,15 @@ export default function ConfirmScreen() {
 
   const scanned: ScannedMedication | null = data ? JSON.parse(data) : null;
 
+  // Local state for name and dosage so they can be edited to re-trigger checks
+  const [editableName, setEditableName] = useState(scanned?.name || "");
+  const [editableDosage, setEditableDosage] = useState(scanned?.dosage || "");
+
   const [warnings, setWarnings] = useState<InteractionWarning[]>([]);
   const [scheduleNotes, setScheduleNotes] = useState<string | null>(null);
+  const [dosageWarning, setDosageWarning] = useState<string | null>(null);
   const [checkingInteractions, setCheckingInteractions] = useState(false);
+  const [showMoreDetails, setShowMoreDetails] = useState(false);
   const [saving, setSaving] = useState(false);
 
   // Convert HH:MM string to local Date object for the picker
@@ -58,11 +72,28 @@ export default function ConfirmScreen() {
   const [editableTimes, setEditableTimes] = useState<Date[]>(
     (scanned?.suggestedTimes || []).map(parseTime)
   );
+  const [editStartDate, setEditStartDate] = useState(
+    scanned?.startDate ? new Date(scanned.startDate + "T00:00:00") : new Date()
+  );
+  const [editEndDate, setEditEndDate] = useState(
+    scanned?.endDate ? new Date(scanned.endDate + "T00:00:00") : new Date(Date.now() + 30 * 24 * 60 * 60 * 1000)
+  );
 
   const updateTime = (index: number, newDate: Date) => {
     const newTimes = [...editableTimes];
     newTimes[index] = newDate;
     setEditableTimes(newTimes);
+  };
+
+  const addTimeSlot = () => {
+    const d = new Date();
+    d.setHours(12 + editableTimes.length * 4, 0, 0, 0);
+    setEditableTimes([...editableTimes, d]);
+  };
+
+  const removeTimeSlot = (index: number) => {
+    if (editableTimes.length <= 1) return;
+    setEditableTimes(editableTimes.filter((_, i) => i !== index));
   };
 
   // Animations
@@ -80,23 +111,53 @@ export default function ConfirmScreen() {
   useEffect(() => {
     if (!scanned) return;
     const existing = medications.map((m) => m.name);
-    if (existing.length === 0) return;
+    if (existing.length === 0 || !editableName.trim()) return;
 
-    setCheckingInteractions(true);
-    checkInteractions(existing, scanned.name)
-      .then((result) => {
-        setWarnings(result.warnings);
-        setScheduleNotes(result.scheduleNotes);
-        // Animate warnings in
-        Animated.timing(warningFade, {
-          toValue: 1,
-          duration: 400,
-          useNativeDriver: true,
-        }).start();
-      })
-      .catch(console.error)
-      .finally(() => setCheckingInteractions(false));
-  }, []);
+    // Debounce the check to avoid spamming the API while typing
+    const timeoutId = setTimeout(() => {
+      setCheckingInteractions(true);
+      checkInteractions(existing, editableName.trim(), editableDosage.trim(), scanned.frequency)
+        .then((result) => {
+          setWarnings(result.warnings);
+          setScheduleNotes(result.scheduleNotes);
+          if (result.dosageWarning) setDosageWarning(result.dosageWarning);
+          else setDosageWarning(null); // Clear previous warning if new check passes
+
+          // Auto-append recommendations to instructions (summarized to one sentence)
+          const additions: string[] = [];
+          result.warnings.forEach((w) => {
+            if (w.recommendation) {
+              const firstSentence = w.recommendation.split(/[.!?]/).filter(Boolean)[0];
+              if (firstSentence) additions.push(firstSentence.trim() + ".");
+            }
+          });
+          if (result.scheduleNotes) additions.push(result.scheduleNotes);
+          
+          if (additions.length > 0) {
+            setEditableInstructions((prev) => {
+              // Strip out old auto-added notes before appending new ones to prevent stacking
+              const cleanPrev = prev.split("\n\n⚠️ Safety notes:\n")[0];
+              const separator = cleanPrev.trim() ? "\n\n⚠️ Safety notes:\n" : "";
+              return cleanPrev.trim() + separator + additions.join("\n");
+            });
+          } else {
+             // If there are no new additions, strip out the safety notes block
+             setEditableInstructions((prev) => prev.split("\n\n⚠️ Safety notes:\n")[0].trim());
+          }
+
+          // Animate warnings in
+          Animated.timing(warningFade, {
+            toValue: 1,
+            duration: 400,
+            useNativeDriver: true,
+          }).start();
+        })
+        .catch(console.error)
+        .finally(() => setCheckingInteractions(false));
+    }, 800); // 800ms debounce
+
+    return () => clearTimeout(timeoutId);
+  }, [editableName, editableDosage]);
 
   const handleConfirm = async () => {
     if (!scanned || !profile) return;
@@ -104,7 +165,7 @@ export default function ConfirmScreen() {
     try {
       await saveMedication({
         profileId: profile.id,
-        scanned: { ...scanned, instructions: editableInstructions },
+        scanned: { ...scanned, name: editableName.trim(), dosage: editableDosage.trim(), instructions: editableInstructions },
         interactions: warnings,
         finalTimes: editableTimes.map(formatTime),
       });
@@ -169,7 +230,13 @@ export default function ConfirmScreen() {
             </View>
           </View>
 
-          <Text style={styles.medName}>{scanned.name}</Text>
+          <TextInput
+            style={styles.medNameInput}
+            value={editableName}
+            onChangeText={setEditableName}
+            placeholder="Medication Name"
+            placeholderTextColor={theme.colors.textSecondary}
+          />
           {scanned.brandName && (
             <Text style={styles.brandName}>{scanned.brandName}</Text>
           )}
@@ -177,9 +244,15 @@ export default function ConfirmScreen() {
           <View style={styles.detailsGrid}>
             <View style={styles.detailItem}>
               <Text style={styles.detailIcon}>💊</Text>
-              <View>
-                <Text style={styles.detailLabel}>Dosage</Text>
-                <Text style={styles.detailValue}>{scanned.dosage}</Text>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.detailLabel}>Dosage (Tap to edit)</Text>
+                <TextInput
+                  style={styles.inlineInput}
+                  value={editableDosage}
+                  onChangeText={setEditableDosage}
+                  placeholder="e.g. 10mg"
+                  placeholderTextColor={theme.colors.textSecondary}
+                />
               </View>
             </View>
             <View style={styles.detailItem}>
@@ -207,9 +280,25 @@ export default function ConfirmScreen() {
             <View style={styles.detailItem}>
               <Text style={styles.detailIcon}>⏰</Text>
               <View style={{ flex: 1 }}>
-                <Text style={styles.detailLabel}>Scheduled Times (Edit)</Text>
+                <View style={styles.timesHeader}>
+                  <Text style={styles.detailLabel}>Scheduled Times</Text>
+                  <View style={styles.timesActions}>
+                    {editableTimes.length > 1 && (
+                      <Pressable
+                        onPress={() => removeTimeSlot(editableTimes.length - 1)}
+                        style={styles.timeActionBtn}
+                      >
+                        <Text style={styles.timeActionText}>−</Text>
+                      </Pressable>
+                    )}
+                    <Pressable onPress={addTimeSlot} style={styles.timeActionBtn}>
+                      <Text style={styles.timeActionText}>+</Text>
+                    </Pressable>
+                  </View>
+                </View>
                 {editableTimes.map((t, i) => (
                   <View key={i} style={styles.timeInputRow}>
+                    <Text style={styles.timeSlotLabel}>Dose {i + 1}</Text>
                     <DateTimePicker
                       value={t}
                       mode="time"
@@ -223,17 +312,72 @@ export default function ConfirmScreen() {
                 ))}
               </View>
             </View>
-            {scanned.color && (
-              <View style={styles.detailItem}>
-                <Text style={styles.detailIcon}>🔍</Text>
-                <View>
-                  <Text style={styles.detailLabel}>Appearance</Text>
-                  <Text style={styles.detailValue}>{scanned.color}</Text>
+
+            {/* Hidden by default until "Show more" is tapped */}
+            {showMoreDetails ? (
+              <>
+                {/* Date range */}
+                <View style={styles.detailItem}>
+                  <Text style={styles.detailIcon}>📅</Text>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.detailLabel}>Start Date</Text>
+                    <DateTimePicker
+                      value={editStartDate}
+                      mode="date"
+                      display="default"
+                      onChange={(e, d) => { if (d) setEditStartDate(d); }}
+                      themeVariant="light"
+                    />
+                  </View>
                 </View>
-              </View>
+                <View style={styles.detailItem}>
+                  <Text style={styles.detailIcon}>📅</Text>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.detailLabel}>End Date</Text>
+                    <DateTimePicker
+                      value={editEndDate}
+                      mode="date"
+                      display="default"
+                      minimumDate={editStartDate}
+                      onChange={(e, d) => { if (d) setEditEndDate(d); }}
+                      themeVariant="light"
+                    />
+                  </View>
+                </View>
+                {scanned.color && (
+                  <View style={styles.detailItem}>
+                    <Text style={styles.detailIcon}>🔍</Text>
+                    <View>
+                      <Text style={styles.detailLabel}>Appearance</Text>
+                      <Text style={styles.detailValue}>{scanned.color}</Text>
+                    </View>
+                  </View>
+                )}
+              </>
+            ) : (
+              <Pressable
+                style={styles.showMoreBtn}
+                onPress={() => {
+                  LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+                  setShowMoreDetails(true);
+                }}
+              >
+                <Text style={styles.showMoreBtnText}>Review Dates / Appearance ↓</Text>
+              </Pressable>
             )}
           </View>
         </Animated.View>
+
+        {/* Dosage warning */}
+        {dosageWarning && (
+          <View style={styles.dosageWarningCard}>
+            <Text style={styles.dosageWarningIcon}>⚠️</Text>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.dosageWarningTitle}>Dosage Alert</Text>
+              <Text style={styles.dosageWarningText}>{dosageWarning}</Text>
+            </View>
+          </View>
+        )}
 
         {/* Interaction check */}
         {checkingInteractions && (
@@ -241,7 +385,7 @@ export default function ConfirmScreen() {
             <ActivityIndicator color={theme.colors.primary} size="small" />
             <View>
               <Text style={styles.checkingTitle}>
-                Checking drug interactions…
+                Checking interactions & dosage…
               </Text>
               <Text style={styles.checkingBody}>
                 Comparing with {medications.length} current medication
@@ -399,11 +543,15 @@ const styles = StyleSheet.create({
     color: "#FFFFFF",
     fontSize: 12,
   },
-  medName: {
+  medNameInput: {
     fontFamily: theme.fonts.extraBold,
     fontSize: theme.fontSizes.xl,
     color: theme.colors.primary,
     letterSpacing: -0.3,
+    padding: 0,
+    marginBottom: theme.spacing.xs,
+    borderBottomWidth: 1,
+    borderBottomColor: theme.colors.borderLight,
   },
   brandName: {
     fontFamily: theme.fonts.regular,
@@ -446,8 +594,75 @@ const styles = StyleSheet.create({
     borderColor: theme.colors.border,
     marginTop: theme.spacing.xs,
   },
+  timesHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 4,
+  },
+  timesActions: {
+    flexDirection: "row",
+    gap: 6,
+  },
+  timeActionBtn: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    borderWidth: 2,
+    borderColor: theme.colors.primary,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  timeActionText: {
+    fontFamily: theme.fonts.bold,
+    fontSize: 16,
+    color: theme.colors.primary,
+    lineHeight: 18,
+  },
+  timeSlotLabel: {
+    fontFamily: theme.fonts.medium,
+    fontSize: theme.fontSizes.sm,
+    color: theme.colors.textSecondary,
+    minWidth: 55,
+  },
+  // Dosage warning
+  dosageWarningCard: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: theme.spacing.sm,
+    backgroundColor: "#FFF8E1",
+    borderRadius: theme.radii.lg,
+    padding: theme.spacing.md,
+    borderWidth: 1,
+    borderColor: "#FFD54F",
+    marginBottom: theme.spacing.md,
+  },
+  showMoreBtn: {
+    marginTop: theme.spacing.sm,
+    paddingVertical: theme.spacing.sm,
+    alignItems: "center",
+  },
+  showMoreBtnText: {
+    fontFamily: theme.fonts.medium,
+    fontSize: theme.fontSizes.sm,
+    color: theme.colors.accent,
+  },
+  dosageWarningIcon: { fontSize: 22 },
+  dosageWarningTitle: {
+    fontFamily: theme.fonts.bold,
+    fontSize: theme.fontSizes.sm,
+    color: "#E65100",
+    marginBottom: 2,
+  },
+  dosageWarningText: {
+    fontFamily: theme.fonts.regular,
+    fontSize: theme.fontSizes.xs,
+    color: "#BF360C",
+    lineHeight: 20,
+  },
   timeInputRow: {
     flexDirection: "row",
+    alignItems: "center",
     gap: theme.spacing.sm,
     marginTop: theme.spacing.xs,
     flexWrap: "wrap",

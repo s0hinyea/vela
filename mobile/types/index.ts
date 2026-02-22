@@ -32,6 +32,7 @@ export interface InteractionWarning {
   severity: "MAJOR" | "MODERATE" | "MINOR";
   explanation: string;
   recommendation: string;
+  dosageWarning?: string; // "Dosage may exceed safe limits"
 }
 
 // ─── Medication ───────────────────────────────────────────────────────────────
@@ -47,6 +48,8 @@ export interface Medication {
   instructions: string;
   color: string | null;
   interactions: InteractionWarning[];
+  startDate?: string;   // YYYY-MM-DD
+  endDate?: string;     // YYYY-MM-DD
   createdAt: string;
 }
 
@@ -76,6 +79,8 @@ export interface ScannedMedication {
   color: string | null;
   confidence: number;
   rawLabelText: string;
+  startDate?: string;   // YYYY-MM-DD
+  endDate?: string;     // YYYY-MM-DD
 }
 
 // ─── API response wrapper ─────────────────────────────────────────────────────

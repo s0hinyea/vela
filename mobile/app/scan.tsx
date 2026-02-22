@@ -14,9 +14,18 @@ import {
   Alert,
   Animated,
   Dimensions,
+  ScrollView,
+  LayoutAnimation,
+  Platform,
+  UIManager,
 } from "react-native";
 import { useRouter } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
+
+// Enable LayoutAnimation on Android
+if (Platform.OS === "android" && UIManager.setLayoutAnimationEnabledExperimental) {
+  UIManager.setLayoutAnimationEnabledExperimental(true);
+}
 import { CameraView, useCameraPermissions } from "expo-camera";
 import DateTimePicker from "@react-native-community/datetimepicker";
 import { theme } from "../theme";
@@ -53,7 +62,37 @@ export default function ScanScreen() {
   const [manualName, setManualName] = useState("");
   const [manualDosage, setManualDosage] = useState("");
   const [manualInstructions, setManualInstructions] = useState("");
-  const [manualTime, setManualTime] = useState(new Date(new Date().setHours(8, 0, 0, 0))); // Default 8:00 AM
+  const [manualFrequency, setManualFrequency] = useState(1);
+  const [manualTimes, setManualTimes] = useState<Date[]>([
+    new Date(new Date().setHours(8, 0, 0, 0)),
+  ]);
+  const [startDate, setStartDate] = useState(new Date());
+  const [endDate, setEndDate] = useState(
+    new Date(Date.now() + 30 * 24 * 60 * 60 * 1000) // Default: +30 days
+  );
+
+  // Keep manualTimes array in sync with frequency selection
+  const handleFrequencyChange = (count: number) => {
+    setManualFrequency(count);
+    const defaults = [8, 12, 18, 22]; // Sensible default hours
+    const newTimes: Date[] = [];
+    for (let i = 0; i < count; i++) {
+      if (manualTimes[i]) {
+        newTimes.push(manualTimes[i]); // Keep existing time if set
+      } else {
+        const d = new Date();
+        d.setHours(defaults[i] ?? 8 + i * 4, 0, 0, 0);
+        newTimes.push(d);
+      }
+    }
+    setManualTimes(newTimes);
+  };
+
+  const updateManualTime = (index: number, newDate: Date) => {
+    const updated = [...manualTimes];
+    updated[index] = newDate;
+    setManualTimes(updated);
+  };
 
   // Format Date to backend HH:MM (24h)
   const formatTo24Hour = (d: Date) => {
@@ -108,17 +147,20 @@ export default function ScanScreen() {
       Alert.alert("Required", "Please enter at least a medication name and dosage.");
       return;
     }
+    const freqMap = ["once", "twice", "three_times", "four_times"] as const;
     const manualData = {
       name: manualName.trim(),
       brandName: null,
       dosage: manualDosage.trim(),
       form: "tablet" as const,
-      frequency: "once" as const,
-      suggestedTimes: [formatTo24Hour(manualTime)],
+      frequency: freqMap[manualFrequency - 1],
+      suggestedTimes: manualTimes.map(formatTo24Hour),
       instructions: manualInstructions.trim() || "As directed",
       color: null,
       confidence: 1,
-      rawLabelText: "",
+      rawLabelText: "Manual entry",
+      startDate: startDate.toISOString().slice(0, 10),
+      endDate: endDate.toISOString().slice(0, 10),
     };
     router.push({ pathname: "/confirm", params: { data: JSON.stringify(manualData) } });
   };
@@ -127,7 +169,12 @@ export default function ScanScreen() {
   if (mode === "manual") {
     return (
       <SafeAreaView style={styles.manualContainer}>
-        <View style={styles.manualForm}>
+        <ScrollView
+          style={styles.manualForm}
+          contentContainerStyle={{ paddingBottom: 40 }}
+          showsVerticalScrollIndicator={false}
+          keyboardShouldPersistTaps="handled"
+        >
           <Pressable onPress={() => setMode("camera")} style={styles.backLink}>
             <Text style={styles.backLinkText}>← Use camera</Text>
           </Pressable>
@@ -137,59 +184,140 @@ export default function ScanScreen() {
             Can't scan the label? No problem — type it in.
           </Text>
 
+          {/* 1. Medication Name */}
           <View style={styles.fieldGroup}>
             <Text style={styles.label}>Medication name</Text>
             <TextInput
               style={styles.input}
               value={manualName}
-              onChangeText={setManualName}
+              onChangeText={(t) => {
+                LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+                setManualName(t);
+              }}
               placeholder="e.g. Metformin"
               placeholderTextColor={theme.colors.textSecondary}
               autoCapitalize="words"
             />
           </View>
-          <View style={styles.fieldGroup}>
-            <Text style={styles.label}>Dosage</Text>
-            <TextInput
-              style={styles.input}
-              value={manualDosage}
-              onChangeText={setManualDosage}
-              placeholder="e.g. 500mg"
-              placeholderTextColor={theme.colors.textSecondary}
-            />
-          </View>
-          <View style={styles.fieldGroup}>
-            <Text style={styles.label}>First dose time</Text>
-            <View style={styles.timePickerContainer}>
-              <DateTimePicker
-                value={manualTime}
-                mode="time"
-                display="default"
-                onChange={(event, date) => {
-                  if (date) setManualTime(date);
+
+          {/* 2. Dosage (shows when Name is non-empty) */}
+          {manualName.trim().length > 0 && (
+            <View style={styles.fieldGroup}>
+              <Text style={styles.label}>Dosage</Text>
+              <TextInput
+                style={styles.input}
+                value={manualDosage}
+                onChangeText={(t) => {
+                  LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+                  setManualDosage(t);
                 }}
-                themeVariant="light"
+                placeholder="e.g. 500mg"
+                placeholderTextColor={theme.colors.textSecondary}
               />
             </View>
-          </View>
-          <View style={styles.fieldGroup}>
-            <Text style={styles.label}>Instructions (optional)</Text>
-            <TextInput
-              style={styles.input}
-              value={manualInstructions}
-              onChangeText={setManualInstructions}
-              placeholder="e.g. Take with food"
-              placeholderTextColor={theme.colors.textSecondary}
-            />
-          </View>
+          )}
 
-          <Pressable
-            style={({ pressed }) => [styles.submitButton, pressed && styles.pressedGeneric]}
-            onPress={handleManualSubmit}
-          >
-            <Text style={styles.submitButtonText}>Continue →</Text>
-          </Pressable>
-        </View>
+          {/* 3. The Rest (shows when Name and Dosage are non-empty) */}
+          {manualName.trim().length > 0 && manualDosage.trim().length > 0 && (
+            <>
+              {/* ── Frequency Picker ── */}
+              <View style={styles.fieldGroup}>
+                <Text style={styles.label}>How many times per day?</Text>
+                <View style={styles.freqRow}>
+                  {[1, 2, 3, 4].map((n) => (
+                    <Pressable
+                      key={n}
+                      style={[
+                        styles.freqChip,
+                        manualFrequency === n && styles.freqChipActive,
+                      ]}
+                      onPress={() => handleFrequencyChange(n)}
+                    >
+                      <Text
+                        style={[
+                          styles.freqChipText,
+                          manualFrequency === n && styles.freqChipTextActive,
+                        ]}
+                      >
+                        {n}×
+                      </Text>
+                    </Pressable>
+                  ))}
+                </View>
+              </View>
+
+              {/* ── Time Slots ── */}
+              <View style={styles.fieldGroup}>
+                <Text style={styles.label}>
+                  {manualFrequency === 1 ? "Dose time" : `Dose times (${manualFrequency})`}
+                </Text>
+                {manualTimes.map((t, i) => (
+                  <View key={i} style={styles.timePickerContainer}>
+                    <Text style={styles.timeSlotLabel}>Dose {i + 1}</Text>
+                    <DateTimePicker
+                      value={t}
+                      mode="time"
+                      display="default"
+                      onChange={(event, date) => {
+                        if (date) updateManualTime(i, date);
+                      }}
+                      themeVariant="light"
+                    />
+                  </View>
+                ))}
+              </View>
+
+              {/* ── Date Range ── */}
+              <View style={styles.fieldGroup}>
+                <Text style={styles.label}>Start date</Text>
+                <View style={styles.timePickerContainer}>
+                  <DateTimePicker
+                    value={startDate}
+                    mode="date"
+                    display="default"
+                    onChange={(event, date) => {
+                      if (date) setStartDate(date);
+                    }}
+                    themeVariant="light"
+                  />
+                </View>
+              </View>
+              <View style={styles.fieldGroup}>
+                <Text style={styles.label}>End date</Text>
+                <View style={styles.timePickerContainer}>
+                  <DateTimePicker
+                    value={endDate}
+                    mode="date"
+                    display="default"
+                    minimumDate={startDate}
+                    onChange={(event, date) => {
+                      if (date) setEndDate(date);
+                    }}
+                    themeVariant="light"
+                  />
+                </View>
+              </View>
+
+              <View style={styles.fieldGroup}>
+                <Text style={styles.label}>Instructions (optional)</Text>
+                <TextInput
+                  style={styles.input}
+                  value={manualInstructions}
+                  onChangeText={setManualInstructions}
+                  placeholder="e.g. Take with food"
+                  placeholderTextColor={theme.colors.textSecondary}
+                />
+              </View>
+
+              <Pressable
+                style={({ pressed }) => [styles.submitButton, pressed && styles.pressedGeneric]}
+                onPress={handleManualSubmit}
+              >
+                <Text style={styles.submitButtonText}>Continue →</Text>
+              </Pressable>
+            </>
+          )}
+        </ScrollView>
       </SafeAreaView>
     );
   }
@@ -530,8 +658,42 @@ const styles = StyleSheet.create({
     color: theme.colors.textPrimary,
   },
   timePickerContainer: {
-    alignItems: "flex-start",
+    flexDirection: "row",
+    alignItems: "center",
     marginTop: theme.spacing.xs,
+    gap: theme.spacing.sm,
+  },
+  timeSlotLabel: {
+    fontFamily: theme.fonts.medium,
+    fontSize: theme.fontSizes.sm,
+    color: theme.colors.textSecondary,
+    minWidth: 55,
+  },
+  freqRow: {
+    flexDirection: "row",
+    gap: theme.spacing.sm,
+    marginTop: theme.spacing.xs,
+  },
+  freqChip: {
+    flex: 1,
+    paddingVertical: theme.spacing.sm,
+    borderRadius: theme.radii.lg,
+    borderWidth: 2,
+    borderColor: theme.colors.border,
+    alignItems: "center",
+    backgroundColor: theme.colors.surface,
+  },
+  freqChipActive: {
+    borderColor: theme.colors.primary,
+    backgroundColor: theme.colors.primary,
+  },
+  freqChipText: {
+    fontFamily: theme.fonts.bold,
+    fontSize: theme.fontSizes.md,
+    color: theme.colors.textSecondary,
+  },
+  freqChipTextActive: {
+    color: theme.colors.textOnPrimary,
   },
   input: {
     borderWidth: 1.5,

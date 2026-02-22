@@ -94,20 +94,23 @@ export async function scanLabel(imageBase64: string): Promise<ScannedMedication>
 // ─── Interactions ─────────────────────────────────────────────────────────────
 export async function checkInteractions(
   existingMedications: string[],
-  newMedication: string
-): Promise<{ warnings: InteractionWarning[]; scheduleNotes: string | null; safe: boolean }> {
+  newMedication: string,
+  dosage?: string,
+  frequency?: string
+): Promise<{ warnings: InteractionWarning[]; scheduleNotes: string | null; safe: boolean; dosageWarning?: string }> {
   if (DEMO_MODE) {
     const hasMajor = newMedication === "Potassium Chloride";
     return mockDelay({
       warnings: hasMajor ? MOCK_INTERACTIONS : [],
-      scheduleNotes: null,
+      scheduleNotes: hasMajor ? "Avoid taking within 2 hours of Lisinopril." : null,
       safe: !hasMajor,
+      dosageWarning: hasMajor ? "10mEq twice daily may exceed the recommended maximum for patients on ACE inhibitors." : undefined,
     }, 1000);
   }
   const res = await fetch(`${BASE_URL}/api/interact`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ existingMedications, newMedication }),
+    body: JSON.stringify({ existingMedications, newMedication, dosage, frequency }),
   });
   const json = await res.json();
   if (!json.success) throw new Error(json.error);
@@ -153,7 +156,43 @@ export async function saveMedication(payload: {
   });
   const json = await res.json();
   if (!json.success) throw new Error(json.error);
+  if (!json.success) throw new Error(json.error);
   return json.data;
+}
+
+export async function updateMedication(
+  id: string,
+  payload: { name: string; dosage: string; instructions?: string }
+): Promise<Medication> {
+  if (DEMO_MODE) return mockDelay({ ...MOCK_MEDICATIONS[0], ...payload }, 1000);
+  const res = await fetch(`${BASE_URL}/api/medications/${id}`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+  const json = await res.json();
+  if (!json.success) throw new Error(json.error);
+  return json.data;
+}
+
+export async function deleteMedication(id: string): Promise<void> {
+  // Always hit the demo mock if in demo mode
+  if (DEMO_MODE) return mockDelay(undefined as unknown as void, 800);
+  const res = await fetch(`${BASE_URL}/api/medications/${id}`, {
+    method: "DELETE",
+  });
+  
+  // Wait to see if the response was completely successful before parsing JSON.
+  // DELETE route returns data: null, so text might be empty depending on Vercel handling
+  if (!res.ok) {
+     const text = await res.text();
+     try {
+       const json = JSON.parse(text);
+       throw new Error(json.error || "Failed to delete");
+     } catch (e) {
+       throw new Error(`Failed to delete (${res.status}): ${text}`);
+     }
+  }
 }
 
 // ─── Log Dose ─────────────────────────────────────────────────────────────────

@@ -10,13 +10,16 @@ import {
   StyleSheet,
   ScrollView,
   Alert,
+  ActionSheetIOS,
+  Platform,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter, useFocusEffect } from "expo-router";
 import { theme } from "../../theme";
 import { useVelaStore } from "../../store/useVelaStore";
 import { useAuth } from "../../hooks/useAuth";
-import { fetchMedications } from "../../api";
+import { fetchMedications, deleteMedication } from "../../api";
+import type { Medication } from "../../types";
 
 export default function ProfileScreen() {
   const router = useRouter();
@@ -50,6 +53,73 @@ export default function ProfileScreen() {
         onPress: () => signOut(),
       },
     ]);
+  };
+
+  const handleDelete = (med: Medication) => {
+    Alert.alert(
+      "Remove medication?",
+      `Are you sure you want to remove ${med.name} from your schedule? This cannot be undone.`,
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Remove",
+          style: "destructive",
+          onPress: async () => {
+            // Optimistic update
+            const prev = [...medications];
+            setMedications(medications.filter((m) => m.id !== med.id));
+            try {
+              await deleteMedication(med.id);
+            } catch (e) {
+              console.error("Failed to delete", e);
+              // Revert on failure
+              setMedications(prev);
+              Alert.alert("Error", "Could not remove medication. Please try again.");
+            }
+          },
+        },
+      ]
+    );
+  };
+
+  const handleOptions = (med: Medication) => {
+    if (Platform.OS === "ios") {
+      ActionSheetIOS.showActionSheetWithOptions(
+        {
+          options: ["Cancel", "Edit Medication", "Remove from schedule"],
+          destructiveButtonIndex: 2,
+          cancelButtonIndex: 0,
+        },
+        (buttonIndex) => {
+          if (buttonIndex === 1) {
+            router.push({
+              pathname: "/edit-medication",
+              params: { data: JSON.stringify(med) },
+            });
+          } else if (buttonIndex === 2) {
+            handleDelete(med);
+          }
+        }
+      );
+    } else {
+      // Android fallback
+      Alert.alert(med.name, "What would you like to do?", [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Edit Medication",
+          onPress: () =>
+            router.push({
+              pathname: "/edit-medication",
+              params: { data: JSON.stringify(med) },
+            }),
+        },
+        {
+          text: "Remove",
+          style: "destructive",
+          onPress: () => handleDelete(med),
+        },
+      ]);
+    }
   };
 
   return (
@@ -111,8 +181,16 @@ export default function ProfileScreen() {
                     </Text>
                   ) : null}
                 </View>
-                <Text style={styles.medTimes}>
-                  {med.scheduledTimes
+                <View style={styles.medRight}>
+                  <Pressable
+                    onPress={() => handleOptions(med)}
+                    style={styles.optionsButton}
+                    hitSlop={12}
+                  >
+                    <Text style={styles.optionsIcon}>⋮</Text>
+                  </Pressable>
+                  <Text style={styles.medTimes}>
+                    {med.scheduledTimes
                     .map((t) => {
                       const [h, m] = t.split(":");
                       const hour = parseInt(h, 10);
@@ -121,7 +199,8 @@ export default function ProfileScreen() {
                       return `${h12}:${m} ${ampm}`;
                     })
                     .join(", ")}
-                </Text>
+                  </Text>
+                </View>
               </View>
             ))
           )}
@@ -294,6 +373,18 @@ const styles = StyleSheet.create({
     color: theme.colors.accent,
     marginTop: 4,
     fontStyle: "italic",
+  },
+  medRight: {
+    alignItems: "flex-end",
+    justifyContent: "space-between",
+  },
+  optionsButton: {
+    padding: 4,
+  },
+  optionsIcon: {
+    fontSize: 20,
+    color: theme.colors.textSecondary,
+    fontWeight: "600",
   },
   medTimes: {
     fontFamily: theme.fonts.medium,

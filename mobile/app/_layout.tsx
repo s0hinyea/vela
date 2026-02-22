@@ -131,7 +131,15 @@ export default function RootLayout() {
           contentStyle: { backgroundColor: theme.colors.background },
           animation: "fade",
         }}
-      />
+      >
+        <Stack.Screen
+          name="edit-medication"
+          options={{
+            presentation: "modal",
+            animation: "slide_from_bottom",
+          }}
+        />
+      </Stack>
     </SafeAreaProvider>
   );
 }

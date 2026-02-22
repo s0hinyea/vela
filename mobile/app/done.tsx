@@ -128,7 +128,7 @@ export default function DoneScreen() {
       <Animated.View style={[styles.bottom, { opacity: buttonFade }]}>
         <Pressable
           style={styles.resetLink}
-          onPress={() => router.replace("/")}
+          onPress={() => router.replace("/(tabs)/")}
           accessibilityLabel="Return to home"
         >
           <Text style={styles.resetText}>← Back to home</Text>

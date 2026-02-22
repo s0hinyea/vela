@@ -27,6 +27,16 @@ export default function NowScreen() {
   const [logging, setLogging] = useState(false);
   const { play, stop, isPlaying } = useVoicePlayer();
 
+  // Real-time clock for the front page
+  const [now, setNow] = useState(new Date());
+  useEffect(() => {
+    const timer = setInterval(() => setNow(new Date()), 1000);
+    return () => clearInterval(timer);
+  }, []);
+
+  const timeString = now.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+  const dateString = now.toLocaleDateString([], { weekday: 'long', month: 'long', day: 'numeric' });
+
   // Card entrance animation
   const fadeIn = useRef(new Animated.Value(0)).current;
   const slideUp = useRef(new Animated.Value(30)).current;
@@ -56,10 +66,40 @@ export default function NowScreen() {
     ]).start();
   }, [currentSlot?.id]);
 
-  // If everything is done → End of Day
+  // If everything is done → Render an inline "Done" card instead of redirecting
   if (allTaken) {
-    router.replace("/done");
-    return null;
+    return (
+      <SafeAreaView style={styles.container}>
+        <View style={styles.header}>
+          <View style={styles.headerTitleRow}>
+            <Text style={styles.headerTitle}>Vela</Text>
+          </View>
+          <View style={styles.headerDateRow}>
+            <Text style={styles.headerDate}>{dateString}</Text>
+            <Text style={styles.headerTime}>{timeString}</Text>
+          </View>
+        </View>
+
+        <View style={styles.emptyContainer}>
+          <View style={styles.emptyStateCard}>
+            <Text style={styles.emptyStateEmoji}>🌙</Text>
+            <Text style={styles.emptyStateTitle}>All done for today</Text>
+            <Text style={styles.emptyStateSub}>
+              Great job, Martha. You've taken all your medications. Get some rest.
+            </Text>
+          </View>
+        </View>
+
+        <View style={{ paddingHorizontal: theme.spacing.xl, marginBottom: 40 }}>
+           <Pressable
+            style={({ pressed }) => [styles.addButton, pressed && styles.addButtonPressed, { backgroundColor: theme.colors.surface, borderWidth: 2, borderColor: theme.colors.border }]}
+            onPress={() => router.push("/scan")}
+          >
+            <Text style={[styles.addButtonText, { color: theme.colors.textPrimary }]}>+ Add a new medication</Text>
+          </Pressable>
+        </View>
+      </SafeAreaView>
+    );
   }
 
   // No slots at all — empty state (brand new user)
@@ -69,6 +109,10 @@ export default function NowScreen() {
         <View style={styles.header}>
           <View style={styles.headerTitleRow}>
             <Text style={styles.headerTitle}>Vela</Text>
+          </View>
+          <View style={styles.headerDateRow}>
+            <Text style={styles.headerDate}>{dateString}</Text>
+            <Text style={styles.headerTime}>{timeString}</Text>
           </View>
         </View>
 
@@ -95,7 +139,7 @@ export default function NowScreen() {
   }
 
   const handleTaken = async () => {
-    if (!profile) return;
+    if (!profile || !currentSlot) return;
     setLogging(true);
     try {
       await logDose({
@@ -105,6 +149,15 @@ export default function NowScreen() {
         takenAt: new Date().toISOString(),
       });
       markTaken(currentSlot.id);
+
+      // If this was the last one, transition to the Night screen
+      const remaining = todaySlots.filter(
+        (s) => s.status === "due" || s.status === "upcoming"
+      ).length;
+      
+      if (remaining === 1) { // 1 before we mark it taken, meaning 0 after
+         router.push("/done");
+      }
     } catch (e) {
       console.error("Failed to log dose", e);
     } finally {
@@ -128,6 +181,10 @@ export default function NowScreen() {
           <View style={styles.pillCounter}>
             <Text style={styles.pillCounterText}>{todaySlots.length} meds today</Text>
           </View>
+        </View>
+        <View style={styles.headerDateRow}>
+          <Text style={styles.headerDate}>{dateString}</Text>
+          <Text style={styles.headerTime}>{timeString}</Text>
         </View>
       </View>
 
@@ -284,6 +341,20 @@ const styles = StyleSheet.create({
     color: theme.colors.accent,
     letterSpacing: 1.5,
     textTransform: "uppercase",
+  },
+  headerDateRow: {
+    alignItems: "flex-end",
+  },
+  headerDate: {
+    fontFamily: theme.fonts.medium,
+    fontSize: theme.fontSizes.xs,
+    color: theme.colors.textSecondary,
+    marginBottom: 2,
+  },
+  headerTime: {
+    fontFamily: theme.fonts.bold,
+    fontSize: theme.fontSizes.sm,
+    color: theme.colors.textPrimary,
   },
   pillCounter: {
     backgroundColor: theme.colors.accentSoft,
