@@ -233,9 +233,6 @@ export default function ProfileScreen() {
                   <View style={styles.avatarBody} />
                 </>
               )}
-              <View style={styles.avatarBadge}>
-                <Text style={styles.avatarBadgeText}>{seniorName[0]}</Text>
-              </View>
             </View>
             <View style={styles.avatarInfo}>
               <Text style={styles.seniorName}>{seniorName}</Text>
@@ -517,24 +514,6 @@ const styles = StyleSheet.create({
     borderBottomLeftRadius: 6,
     borderBottomRightRadius: 6,
     backgroundColor: theme.colors.primaryLight,
-  },
-  avatarBadge: {
-    position: "absolute",
-    right: -2,
-    bottom: -2,
-    backgroundColor: theme.colors.accent,
-    width: 18,
-    height: 18,
-    borderRadius: 9,
-    alignItems: "center",
-    justifyContent: "center",
-    borderWidth: 1,
-    borderColor: theme.colors.surface,
-  },
-  avatarBadgeText: {
-    fontFamily: theme.fonts.bold,
-    fontSize: 10,
-    color: theme.colors.textOnPrimary,
   },
   avatarInfo: {
     flex: 1,

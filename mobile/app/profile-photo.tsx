@@ -1,4 +1,4 @@
-import React, { useRef, useState } from "react";
+import React, { useState } from "react";
 import {
   View,
   Text,
@@ -6,37 +6,83 @@ import {
   Pressable,
   ActivityIndicator,
   Alert,
+  Image,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { CameraView, useCameraPermissions } from "expo-camera";
 import { useRouter } from "expo-router";
 import { theme } from "../theme";
 import { useVelaStore } from "../store/useVelaStore";
 import { supabase } from "../lib/supabase";
 
+type PickerAsset = {
+  base64?: string | null;
+  mimeType?: string | null;
+  uri: string;
+};
+
+type PickerResult = {
+  canceled: boolean;
+  assets?: PickerAsset[];
+};
+
+type ImagePickerModule = {
+  MediaTypeOptions: { Images: string | number };
+  requestMediaLibraryPermissionsAsync: () => Promise<{ granted: boolean }>;
+  launchImageLibraryAsync: (options: Record<string, unknown>) => Promise<PickerResult>;
+};
+
+function getImagePicker(): ImagePickerModule | null {
+  try {
+    // Use dynamic require so app stays stable even before dependency install.
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
+    return require("expo-image-picker") as ImagePickerModule;
+  } catch {
+    return null;
+  }
+}
+
 export default function ProfilePhotoScreen() {
   const router = useRouter();
-  const cameraRef = useRef<CameraView>(null);
-  const [permission, requestPermission] = useCameraPermissions();
-  const [cameraReady, setCameraReady] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [previewUri, setPreviewUri] = useState<string | null>(null);
   const { profile, setProfile } = useVelaStore();
 
-  const handleCapture = async () => {
-    if (!profile || !cameraRef.current || !cameraReady || saving) return;
+  const handlePickAndUpload = async () => {
+    if (!profile || saving) return;
+    const ImagePicker = getImagePicker();
+    if (!ImagePicker) {
+      Alert.alert(
+        "Image Picker Missing",
+        "Install expo-image-picker, then restart the app."
+      );
+      return;
+    }
+
     setSaving(true);
     try {
-      const photo = await cameraRef.current.takePictureAsync({
-        quality: 0.45,
-        base64: true,
-        skipProcessing: false,
-      });
-
-      if (!photo?.base64) {
-        throw new Error("Could not capture image.");
+      const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (!permission.granted) {
+        Alert.alert("Permission needed", "Allow photo library access to choose a profile photo.");
+        return;
       }
 
-      const dataUrl = `data:image/jpeg;base64,${photo.base64}`;
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        allowsEditing: true,
+        aspect: [1, 1],
+        quality: 0.45,
+        base64: true,
+      });
+
+      if (result.canceled || !result.assets?.length) return;
+      const asset = result.assets[0];
+      if (!asset?.base64) {
+        throw new Error("Could not read selected image.");
+      }
+
+      setPreviewUri(asset.uri);
+      const mimeType = asset.mimeType || "image/jpeg";
+      const dataUrl = `data:${mimeType};base64,${asset.base64}`;
       const { error } = await supabase
         .from("profiles")
         .update({ senior_photo_url: dataUrl })
@@ -52,35 +98,6 @@ export default function ProfilePhotoScreen() {
     }
   };
 
-  if (!permission) {
-    return (
-      <SafeAreaView style={styles.container}>
-        <View style={styles.centered}>
-          <ActivityIndicator color={theme.colors.primary} />
-        </View>
-      </SafeAreaView>
-    );
-  }
-
-  if (!permission.granted) {
-    return (
-      <SafeAreaView style={styles.container}>
-        <View style={styles.centered}>
-          <Text style={styles.title}>Camera permission needed</Text>
-          <Text style={styles.sub}>
-            Allow camera access to capture and upload a senior profile photo.
-          </Text>
-          <Pressable style={styles.primaryButton} onPress={() => requestPermission()}>
-            <Text style={styles.primaryButtonText}>Allow Camera</Text>
-          </Pressable>
-          <Pressable style={styles.secondaryButton} onPress={() => router.back()}>
-            <Text style={styles.secondaryButtonText}>Back</Text>
-          </Pressable>
-        </View>
-      </SafeAreaView>
-    );
-  }
-
   return (
     <SafeAreaView style={styles.container}>
       <View style={styles.header}>
@@ -90,29 +107,30 @@ export default function ProfilePhotoScreen() {
         <Text style={styles.headerTitle}>Senior Photo</Text>
       </View>
 
-      <View style={styles.cameraWrap}>
-        <CameraView
-          ref={cameraRef}
-          style={styles.camera}
-          facing="front"
-          onCameraReady={() => setCameraReady(true)}
-        />
-      </View>
+      <View style={styles.body}>
+        <View style={styles.previewWrap}>
+          {previewUri ? (
+            <Image source={{ uri: previewUri }} style={styles.previewImage} />
+          ) : (
+            <View style={styles.previewPlaceholder}>
+              <Text style={styles.previewPlaceholderText}>Choose from photo library</Text>
+            </View>
+          )}
+        </View>
 
-      <View style={styles.footer}>
         <Pressable
           style={({ pressed }) => [
-            styles.captureButton,
-            pressed && styles.capturePressed,
-            (!cameraReady || saving) && styles.buttonDisabled,
+            styles.pickButton,
+            pressed && styles.pickPressed,
+            saving && styles.buttonDisabled,
           ]}
-          onPress={handleCapture}
-          disabled={!cameraReady || saving}
+          onPress={handlePickAndUpload}
+          disabled={saving}
         >
           {saving ? (
             <ActivityIndicator color={theme.colors.textOnPrimary} />
           ) : (
-            <Text style={styles.captureButtonText}>Capture & Upload</Text>
+            <Text style={styles.pickButtonText}>Pick & Upload Photo</Text>
           )}
         </Pressable>
       </View>
@@ -124,24 +142,6 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: theme.colors.background,
-  },
-  centered: {
-    flex: 1,
-    justifyContent: "center",
-    alignItems: "center",
-    paddingHorizontal: theme.spacing.lg,
-  },
-  title: {
-    fontFamily: theme.fonts.bold,
-    fontSize: theme.fontSizes.lg,
-    color: theme.colors.primary,
-  },
-  sub: {
-    marginTop: 8,
-    fontFamily: theme.fonts.regular,
-    fontSize: theme.fontSizes.sm,
-    color: theme.colors.textSecondary,
-    textAlign: "center",
   },
   header: {
     flexDirection: "row",
@@ -160,60 +160,57 @@ const styles = StyleSheet.create({
     color: theme.colors.primary,
     fontSize: theme.fontSizes.md,
   },
-  cameraWrap: {
+  body: {
     flex: 1,
-    marginHorizontal: theme.spacing.md,
-    borderRadius: theme.radii.xl,
-    overflow: "hidden",
+    paddingHorizontal: theme.spacing.lg,
+    paddingBottom: theme.spacing.xl,
+    justifyContent: "center",
+    gap: theme.spacing.lg,
+  },
+  previewWrap: {
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  previewImage: {
+    width: 180,
+    height: 180,
+    borderRadius: 90,
+    borderWidth: 2,
+    borderColor: theme.colors.accent,
+    backgroundColor: theme.colors.surface,
+  },
+  previewPlaceholder: {
+    width: 180,
+    height: 180,
+    borderRadius: 90,
     borderWidth: 1,
     borderColor: theme.colors.border,
-    backgroundColor: "#000",
+    backgroundColor: theme.colors.surface,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: theme.spacing.md,
   },
-  camera: {
-    flex: 1,
+  previewPlaceholderText: {
+    fontFamily: theme.fonts.medium,
+    fontSize: theme.fontSizes.xs,
+    color: theme.colors.textSecondary,
+    textAlign: "center",
   },
-  footer: {
-    padding: theme.spacing.lg,
-  },
-  captureButton: {
+  pickButton: {
     backgroundColor: theme.colors.primary,
     borderRadius: theme.radii.xl,
     paddingVertical: theme.spacing.md,
     alignItems: "center",
     justifyContent: "center",
   },
-  capturePressed: {
+  pickPressed: {
     backgroundColor: theme.colors.primaryLight,
     transform: [{ scale: 0.98 }],
   },
-  captureButtonText: {
+  pickButtonText: {
     fontFamily: theme.fonts.bold,
     fontSize: theme.fontSizes.md,
     color: theme.colors.textOnPrimary,
-  },
-  primaryButton: {
-    marginTop: theme.spacing.md,
-    backgroundColor: theme.colors.primary,
-    borderRadius: theme.radii.lg,
-    paddingVertical: theme.spacing.sm,
-    paddingHorizontal: theme.spacing.lg,
-  },
-  primaryButtonText: {
-    color: theme.colors.textOnPrimary,
-    fontFamily: theme.fonts.semiBold,
-  },
-  secondaryButton: {
-    marginTop: theme.spacing.sm,
-    borderRadius: theme.radii.lg,
-    paddingVertical: theme.spacing.sm,
-    paddingHorizontal: theme.spacing.lg,
-    borderWidth: 1,
-    borderColor: theme.colors.border,
-    backgroundColor: theme.colors.surface,
-  },
-  secondaryButtonText: {
-    color: theme.colors.textPrimary,
-    fontFamily: theme.fonts.medium,
   },
   buttonDisabled: {
     opacity: 0.6,
