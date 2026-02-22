@@ -123,6 +123,39 @@ export async function fetchTodaySchedule(
   return json.data;
 }
 
+export async function fetchScheduleHistory(
+  profileId: string
+): Promise<{ history: { date: string; slots: DoseSlot[] }[] }> {
+  if (DEMO_MODE) {
+    return mockDelay({
+      history: [
+        { date: new Date().toISOString().slice(0, 10), slots: MOCK_TODAY_SLOTS },
+      ],
+    });
+  }
+  const params = new URLSearchParams({ profileId });
+  const timeZone = getDeviceTimeZone();
+  if (timeZone) params.set("timeZone", timeZone);
+  const res = await fetch(`${BASE_URL}/api/schedule/history?${params.toString()}`);
+  const json = await res.json();
+  if (!json.success) throw new Error(json.error);
+  return json.data;
+}
+
+export async function generateDemoHistory(
+  profileId: string
+): Promise<{ message: string }> {
+  const timeZone = getDeviceTimeZone();
+  const res = await fetch(`${BASE_URL}/api/schedule/demo-history`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ profileId, timeZone }),
+  });
+  const json = await res.json();
+  if (!json.success) throw new Error(json.error);
+  return json;
+}
+
 // ─── Scan ─────────────────────────────────────────────────────────────────────
 export async function scanLabel(imageBase64: string): Promise<ScannedMedication> {
   if (DEMO_MODE) return mockDelay(MOCK_SCAN_RESULT, 1500);
@@ -226,17 +259,17 @@ export async function deleteMedication(id: string): Promise<void> {
   const res = await fetch(`${BASE_URL}/api/medications/${id}`, {
     method: "DELETE",
   });
-  
+
   // Wait to see if the response was completely successful before parsing JSON.
   // DELETE route returns data: null, so text might be empty depending on Vercel handling
   if (!res.ok) {
-     const text = await res.text();
-     try {
-       const json = JSON.parse(text);
-       throw new Error(json.error || "Failed to delete");
-     } catch (e) {
-       throw new Error(`Failed to delete (${res.status}): ${text}`);
-     }
+    const text = await res.text();
+    try {
+      const json = JSON.parse(text);
+      throw new Error(json.error || "Failed to delete");
+    } catch (e) {
+      throw new Error(`Failed to delete (${res.status}): ${text}`);
+    }
   }
 }
 
@@ -493,7 +526,7 @@ export async function askVelaChat(
         `Server error (405): method not allowed on tried chat URLs: ${Array.from(attempted).join(", ")}`
       );
     }
-    
+
     if (!res.ok) {
       let errJson: any = null;
       try {

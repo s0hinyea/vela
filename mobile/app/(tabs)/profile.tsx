@@ -21,7 +21,7 @@ import { useRouter, useFocusEffect } from "expo-router";
 import { theme } from "../../theme";
 import { useVelaStore } from "../../store/useVelaStore";
 import { useAuth } from "../../hooks/useAuth";
-import { fetchMedications, deleteMedication, updateLanguage } from "../../api";
+import { fetchMedications, deleteMedication, updateLanguage, generateDemoHistory } from "../../api";
 import type { Medication } from "../../types";
 
 const LANGUAGES = [
@@ -50,6 +50,7 @@ export default function ProfileScreen() {
   );
   const [savingLang, setSavingLang] = useState(false);
   const [dropdownOpen, setDropdownOpen] = useState(false);
+  const [generatingDemo, setGeneratingDemo] = useState(false);
 
   // Sync dropdown with profile when it loads asynchronously
   useEffect(() => {
@@ -180,6 +181,19 @@ export default function ProfileScreen() {
       Alert.alert("Error", `Failed to update language: ${msg}`);
     } finally {
       setSavingLang(false);
+    }
+  };
+
+  const handleGenerateDemo = async () => {
+    if (!profile || generatingDemo) return;
+    setGeneratingDemo(true);
+    try {
+      const result = await generateDemoHistory(profile.id);
+      Alert.alert("Success", result.message);
+    } catch (e: any) {
+      Alert.alert("Error", e.message || "Failed to generate demo data");
+    } finally {
+      setGeneratingDemo(false);
     }
   };
 
@@ -376,6 +390,17 @@ export default function ProfileScreen() {
               styles.accountRow,
               pressed && styles.accountRowPressed,
             ]}
+            onPress={() => router.push("/history")}
+          >
+            <Text style={styles.accountRowIcon}>📅</Text>
+            <Text style={styles.accountRowText}>Medication History</Text>
+          </Pressable>
+
+          <Pressable
+            style={({ pressed }) => [
+              styles.accountRow,
+              pressed && styles.accountRowPressed,
+            ]}
             onPress={handleSignOut}
           >
             <Text style={styles.accountRowIcon}>🚪</Text>
@@ -383,13 +408,17 @@ export default function ProfileScreen() {
           </Pressable>
         </View>
 
-        {/* App Info */}
-        <View style={styles.appInfo}>
+        {/* App Info (Hidden Debug Trigger) */}
+        <Pressable
+          onLongPress={handleGenerateDemo}
+          delayLongPress={2000}
+          style={styles.appInfo}
+        >
           <Text style={styles.appName}>Vela</Text>
           <Text style={styles.appVersion}>
-            A warm, guiding light for daily medication.
+            {generatingDemo ? "Generating demo data..." : "A warm, guiding light for daily medication."}
           </Text>
-        </View>
+        </Pressable>
       </ScrollView>
     </SafeAreaView>
   );
