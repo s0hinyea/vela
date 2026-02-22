@@ -153,6 +153,9 @@ export default function ProfileScreen() {
           onPress: () => handleDelete(med),
         },
       ]);
+    }
+  };
+
   const handleSaveLanguage = async () => {
     if (!profile || !hasUnsavedChange) return;
     setSavingLang(true);
@@ -249,14 +252,14 @@ export default function ProfileScreen() {
                   </Pressable>
                   <Text style={styles.medTimes}>
                     {med.scheduledTimes
-                    .map((t) => {
-                      const [h, m] = t.split(":");
-                      const hour = parseInt(h, 10);
-                      const ampm = hour >= 12 ? "PM" : "AM";
-                      const h12 = hour % 12 || 12;
-                      return `${h12}:${m} ${ampm}`;
-                    })
-                    .join(", ")}
+                      .map((t) => {
+                        const [h, m] = t.split(":");
+                        const hour = parseInt(h, 10);
+                        const ampm = hour >= 12 ? "PM" : "AM";
+                        const h12 = hour % 12 || 12;
+                        return `${h12}:${m} ${ampm}`;
+                      })
+                      .join(", ")}
                   </Text>
                 </View>
               </View>
