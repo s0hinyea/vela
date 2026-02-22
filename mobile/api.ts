@@ -330,12 +330,39 @@ export async function askVelaChat(
       remaining: 2,
     }, 1200);
   }
-  const res = await fetch(`${BASE_URL}/api/chat`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ profileId, medicationId, question }),
-  });
-  const json = await res.json();
-  if (!json.success) throw new Error(json.error);
-  return json.data;
+
+  const url = `${BASE_URL}/api/chat`;
+  console.log(`[ChatAPI] POSTing to ${url} for profile ${profileId}`);
+
+  try {
+    const res = await fetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ profileId, medicationId, question }),
+    });
+
+    const text = await res.text();
+    console.log(`[ChatAPI] Status: ${res.status}, Body length: ${text.length}`);
+    
+    if (!res.ok) {
+      let errJson: any = null;
+      try {
+        errJson = text ? JSON.parse(text) : null;
+      } catch {
+        errJson = null;
+      }
+      if (errJson?.error) {
+        throw new Error(errJson.error);
+      } else {
+        throw new Error(`Server error (${res.status}): ${text.slice(0, 100)}`);
+      }
+    }
+
+    const json = JSON.parse(text);
+    if (!json.success) throw new Error(json.error || "Chat failed");
+    return json.data;
+  } catch (err: any) {
+    console.error("[ChatAPI] Fetch failed:", err);
+    throw err;
+  }
 }

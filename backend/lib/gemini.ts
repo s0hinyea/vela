@@ -291,8 +291,13 @@ export async function askChatbot(
     const response = await getGemini().models.generateContent({
         model: MODEL,
         contents: [
-            { role: "system", parts: [{ text: prompt }] },
-            { role: "user", parts: [{ text: question }] }
+            { 
+                role: "user", 
+                parts: [
+                    { text: `System Instruction: ${prompt}` },
+                    { text: `User Question: ${question}` }
+                ] 
+            }
         ],
     });
 

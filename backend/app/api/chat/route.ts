@@ -29,8 +29,13 @@ export async function POST(request: NextRequest) {
             .lte("created_at", endOfDay);
 
         if (countError) {
+            console.error("[chat] rate-limit query failed:", countError);
             return NextResponse.json(
-                { success: false, error: "Failed to verify query limit." },
+                {
+                    success: false,
+                    error: "Failed to verify query limit.",
+                    details: countError.message,
+                },
                 { status: 500 }
             );
         }
@@ -96,7 +101,11 @@ export async function POST(request: NextRequest) {
     } catch (err) {
         console.error("Chat API error:", err);
         return NextResponse.json(
-            { success: false, error: "Internal server error." },
+            {
+                success: false,
+                error: "Internal server error.",
+                details: err instanceof Error ? err.message : String(err),
+            },
             { status: 500 }
         );
     }
